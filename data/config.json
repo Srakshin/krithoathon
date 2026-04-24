@@ -72,7 +72,47 @@
       "enabled": true,
       "channels": [
         {
-          "channel": "zaihuapd",
+          "channel": "cietetx",
+          "enabled": true,
+          "fetch_limit": 20
+        },
+        {
+          "channel": "edtechreview",
+          "enabled": true,
+          "fetch_limit": 20
+        },
+        {
+          "channel": "educationtechnologynews",
+          "enabled": true,
+          "fetch_limit": 20
+        },
+        {
+          "channel": "elearningindustry",
+          "enabled": true,
+          "fetch_limit": 20
+        },
+        {
+          "channel": "futurepedia_io",
+          "enabled": true,
+          "fetch_limit": 20
+        },
+        {
+          "channel": "aipost",
+          "enabled": true,
+          "fetch_limit": 20
+        },
+        {
+          "channel": "machinelearningresearchnews",
+          "enabled": true,
+          "fetch_limit": 20
+        },
+        {
+          "channel": "googleforeducation",
+          "enabled": true,
+          "fetch_limit": 20
+        },
+        {
+          "channel": "openai",
           "enabled": true,
           "fetch_limit": 20
         }

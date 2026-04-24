@@ -1,192 +1,106 @@
-import React, { useEffect } from 'react';
 import { Link } from 'react-router-dom';
+import { motion } from 'framer-motion';
+import { ArrowRight, BarChart3, Activity, Zap, ShieldAlert } from 'lucide-react';
 
 export default function Landing() {
-  useEffect(() => {
-    // Interactive Spotlight on Cards
-    const interactiveCards = document.querySelectorAll('.interactive-card');
-    
-    const handleMouseMove = (e) => {
-        const card = e.currentTarget;
-        const rect = card.getBoundingClientRect();
-        const x = e.clientX - rect.left;
-        const y = e.clientY - rect.top;
-        card.style.setProperty('--mouse-x', `${x}px`);
-        card.style.setProperty('--mouse-y', `${y}px`);
-    };
-
-    interactiveCards.forEach(card => card.addEventListener('mousemove', handleMouseMove));
-
-    // Scroll Reveal Animation using Intersection Observer
-    const revealElements = document.querySelectorAll('.scroll-reveal');
-    const revealObserver = new IntersectionObserver((entries, observer) => {
-        entries.forEach(entry => {
-            if (entry.isIntersecting) {
-                entry.target.classList.add('revealed');
-                observer.unobserve(entry.target);
-            }
-        });
-    }, { threshold: 0.15, rootMargin: "0px 0px -50px 0px" });
-
-    revealElements.forEach(el => revealObserver.observe(el));
-
-    return () => {
-      interactiveCards.forEach(card => card.removeEventListener('mousemove', handleMouseMove));
-      revealObserver.disconnect();
-    };
-  }, []);
-
   return (
-    <>
-      {/* Background grid */}
-      <div className="bg-grid"></div>
-      <div className="bg-glow"></div>
-
-      {/* Navigation */}
-      <nav className="navbar scrolled">
-          <div className="nav-container">
-              <Link to="/" className="logo">
-                  <span className="logo-icon"><i className="ph ph-hexagon"></i></span>
-                  Horizon
-              </Link>
-              <div className="nav-links">
-                  <a href="#features">Features</a>
-                  <a href="#docs">Documentation</a>
-                  <a href="#pricing">Pricing</a>
-              </div>
-              <div className="nav-actions">
-                  <Link to="/login" className="btn-ghost">Log in</Link>
-                  <Link to="/signup" className="btn-primary">Get Started <i className="ph ph-arrow-right"></i></Link>
-              </div>
+    <div className="min-h-screen bg-[#0a0a0a] text-[#fafafa] overflow-hidden selection:bg-white/10">
+      {/* Navbar */}
+      <nav className="fixed top-0 w-full border-b border-white/5 bg-[#0a0a0a]/50 backdrop-blur-md z-50">
+        <div className="max-w-7xl mx-auto px-6 h-16 flex items-center justify-between">
+          <div className="flex items-center gap-2">
+            <div className="w-8 h-8 rounded-lg bg-white flex items-center justify-center">
+              <Activity className="w-5 h-5 text-black" />
+            </div>
+            <span className="font-semibold text-lg tracking-tight">The Morning Pulse</span>
           </div>
+          <div className="flex items-center gap-4">
+            <Link to="/login" className="text-sm text-zinc-400 hover:text-white transition-colors">
+              Log in
+            </Link>
+            <Link 
+              to="/login" 
+              className="px-4 py-2 text-sm font-medium bg-white text-black rounded-md hover:bg-zinc-200 transition-colors"
+            >
+              Get Started
+            </Link>
+          </div>
+        </div>
       </nav>
 
       {/* Hero Section */}
-      <header className="hero">
-          <div className="hero-content">
-              <div className="pill-badge">
-                  <span className="pulse-dot"></span>
-                  Morning Pulse is now live
+      <main className="pt-32 pb-16 px-6">
+        <div className="max-w-5xl mx-auto text-center">
+          <motion.div
+            initial={{ opacity: 0, y: 20 }}
+            animate={{ opacity: 1, y: 0 }}
+            transition={{ duration: 0.5 }}
+          >
+            <div className="inline-flex items-center gap-2 px-3 py-1 rounded-full bg-white/5 border border-white/10 text-sm text-zinc-300 mb-8">
+              <span className="w-2 h-2 rounded-full bg-green-500 animate-pulse" />
+              Live EdTech Market Intelligence
+            </div>
+            <h1 className="text-5xl md:text-7xl font-bold tracking-tight mb-8 leading-tight">
+              Know what your market <br className="hidden md:block" />
+              is <span className="text-transparent bg-clip-text bg-gradient-to-r from-zinc-200 to-zinc-500">saying today.</span>
+            </h1>
+            <p className="text-lg md:text-xl text-zinc-400 max-w-2xl mx-auto mb-10 leading-relaxed">
+              We crawl Reddit, Hacker News, and RSS feeds to deliver a concise, actionable daily digest of competitor updates, user pain points, and emerging tech trends right to your dashboard.
+            </p>
+            <div className="flex flex-col sm:flex-row items-center justify-center gap-4">
+              <Link 
+                to="/login" 
+                className="flex items-center gap-2 px-6 py-3 text-base font-medium bg-white text-black rounded-lg hover:bg-zinc-200 transition-all active:scale-95"
+              >
+                Start your 14-day trial <ArrowRight className="w-4 h-4" />
+              </Link>
+            </div>
+          </motion.div>
+        </div>
+
+        {/* Feature Cards */}
+        <div className="max-w-6xl mx-auto mt-32 grid md:grid-cols-3 gap-6">
+          {[
+            {
+              title: "Competitor Updates",
+              description: "Track what competitors are launching this week before it hits the mainstream news.",
+              icon: Zap,
+              color: "text-amber-400",
+              bg: "bg-amber-400/10"
+            },
+            {
+              title: "User Pain Points",
+              description: "Discover what educators are complaining about right now on r/Teachers and r/edtech.",
+              icon: ShieldAlert,
+              color: "text-rose-400",
+              bg: "bg-rose-400/10"
+            },
+            {
+              title: "Emerging Trends",
+              description: "Spot the next big AI integrations or software shifts in the EdTech ecosystem.",
+              icon: BarChart3,
+              color: "text-blue-400",
+              bg: "bg-blue-400/10"
+            }
+          ].map((feature, i) => (
+            <motion.div
+              key={i}
+              initial={{ opacity: 0, y: 20 }}
+              animate={{ opacity: 1, y: 0 }}
+              transition={{ duration: 0.5, delay: 0.2 + i * 0.1 }}
+              className="p-6 rounded-2xl bg-[#141415] border border-white/5 hover:border-white/10 transition-colors"
+            >
+              <div className={`w-12 h-12 rounded-xl flex items-center justify-center mb-6 ${feature.bg}`}>
+                <feature.icon className={`w-6 h-6 ${feature.color}`} />
               </div>
-              <h1 className="hero-title">
-                  Intelligence at the speed of <br />
-                  <span className="text-gradient">pure thought.</span>
-              </h1>
-              <p className="hero-subtitle">
-                  The world-class AI ecosystem that combines bold aesthetics with unmatched analysis. Build, iterate, and deploy instantly.
+              <h3 className="text-xl font-semibold mb-3">{feature.title}</h3>
+              <p className="text-zinc-400 leading-relaxed">
+                {feature.description}
               </p>
-              
-              <div className="hero-search-container">
-                  <i className="ph ph-magnifying-glass search-icon"></i>
-                  <input type="text" className="hero-input" placeholder="What are we researching today?" />
-                  <button className="btn-primary input-btn">Generate</button>
-              </div>
-          </div>
-          
-          <div className="hero-visual scroll-reveal">
-              <div className="glass-panel main-dashboard-mockup">
-                  <div className="panel-header">
-                      <div className="window-controls">
-                          <span></span><span></span><span></span>
-                      </div>
-                      <div className="window-title">morning-pulse / daily-brief</div>
-                  </div>
-                  <div className="panel-body">
-                      <div className="mockup-sidebar">
-                          <div className="skeleton-line shimmer w-100"></div>
-                          <div className="skeleton-line shimmer w-80"></div>
-                          <div className="skeleton-line shimmer w-60"></div>
-                          <div className="skeleton-line shimmer w-80"></div>
-                      </div>
-                      <div className="mockup-content">
-                          <div className="skeleton-box shimmer mb-md"></div>
-                          <div className="dashboard-grid">
-                              <div className="skeleton-card shimmer"></div>
-                              <div className="skeleton-card shimmer"></div>
-                              <div className="skeleton-card shimmer"></div>
-                          </div>
-                      </div>
-                  </div>
-              </div>
-          </div>
-      </header>
-
-      {/* Feature Section */}
-      <section id="features" className="features-section">
-          <div className="section-header scroll-reveal">
-              <div className="section-label">Features</div>
-              <h2>Everything you need. <br />Nothing you don't.</h2>
-          </div>
-
-          <div className="bento-grid">
-              <div className="bento-card bento-large scroll-reveal interactive-card">
-                  <div className="spotlight"></div>
-                  <div className="card-content">
-                      <div className="card-icon"><i className="ph ph-cpu"></i></div>
-                      <h3>Next-Gen AI Filtering</h3>
-                      <p>Harness the power of fluid micro-animations and deep predictive routing. Your users won't just use your app, they'll feel it.</p>
-                  </div>
-                  <div className="card-visual visual-glow-1">
-                      <div className="floating-orb orb-1"></div>
-                      <div className="floating-orb orb-2"></div>
-                  </div>
-              </div>
-
-              <div className="bento-card scroll-reveal interactive-card">
-                  <div className="spotlight"></div>
-                  <div className="card-content">
-                      <div className="card-icon"><i className="ph ph-rocket-launch"></i></div>
-                      <h3>Instant Intelligence</h3>
-                      <p>Push to global edge networks in milliseconds. Zero config required.</p>
-                  </div>
-              </div>
-
-              <div className="bento-card scroll-reveal interactive-card">
-                  <div className="spotlight"></div>
-                  <div className="card-content">
-                      <div className="card-icon"><i className="ph ph-shield-check"></i></div>
-                      <h3>Engineered for Scale</h3>
-                      <p>Enterprise-grade security natively baked into the foundation.</p>
-                  </div>
-              </div>
-          </div>
-      </section>
-
-      <section className="onboarding-section">
-          <div className="onboarding-container scroll-reveal interactive-card glass-panel">
-              <div className="spotlight"></div>
-              <div className="onboarding-content">
-                  <h2>Ready to redefine your workflow?</h2>
-                  <p>Join the future of insight creation. Check out your morning pulse now.</p>
-                  <div className="onboarding-actions">
-                      <Link to="/signup" className="btn-primary btn-large">Create Account</Link>
-                  </div>
-              </div>
-              <div className="onboarding-bg-effect"></div>
-          </div>
-      </section>
-
-      <footer className="footer">
-          <div className="footer-container">
-              <div className="footer-brand">
-                  <Link to="/" className="logo">
-                      <span className="logo-icon"><i className="ph ph-hexagon"></i></span>
-                      Morning Pulse
-                  </Link>
-                  <p className="footer-tagline">Crafted with precision.</p>
-              </div>
-              <div className="footer-links">
-                  <div className="link-column">
-                      <h4>Product</h4>
-                      <Link to="/signup">Get Started</Link>
-                      <Link to="/login">Sign In</Link>
-                  </div>
-              </div>
-          </div>
-          <div className="footer-bottom">
-              <p>&copy; 2026 Morning Pulse. All rights reserved.</p>
-          </div>
-      </footer>
-    </>
+            </motion.div>
+          ))}
+        </div>
+      </main>
+    </div>
   );
 }
