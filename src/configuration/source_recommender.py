@@ -5,8 +5,8 @@ from typing import List, Dict, Optional
 
 from ..ai.client import create_ai_client
 from ..ai.utils import parse_json_response
-from ..models import AIConfig
-from .prompts import RECOMMEND_SYSTEM, RECOMMEND_USER
+from ..domain.models import AIConfig
+from .recommendation_prompts import RECOMMEND_SYSTEM, RECOMMEND_USER
 
 
 async def get_ai_recommendations(
@@ -29,7 +29,6 @@ async def get_ai_recommendations(
     except (ValueError, Exception):
         return []
 
-    # Format existing sources for the prompt
     existing_lines = []
     for src in existing_sources:
         desc = src.get("description", src.get("type", "unknown"))
@@ -54,7 +53,6 @@ async def get_ai_recommendations(
         return []
 
     sources = result.get("sources", [])
-    # Tag each source as AI-recommended
     for src in sources:
         src["origin"] = "ai"
 

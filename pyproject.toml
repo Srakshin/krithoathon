@@ -28,9 +28,9 @@ dev = [
 ]
 
 [project.scripts]
-horizon = "src.main:main"
+horizon = "src.cli:main"
 horizon-mcp = "src.mcp.server:main"
-horizon-wizard = "src.setup.wizard:main"
+horizon-wizard = "src.configuration.setup_wizard:main"
 
 [build-system]
 requires = ["hatchling"]

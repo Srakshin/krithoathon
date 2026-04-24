@@ -10,8 +10,8 @@ from email.utils import parsedate_to_datetime
 import httpx
 import feedparser
 
-from .base import BaseScraper
-from ..models import ContentItem, SourceType, RSSSourceConfig
+from .base_scraper import BaseScraper
+from ..domain.models import ContentItem, SourceType, RSSSourceConfig
 
 logger = logging.getLogger(__name__)
 
@@ -66,32 +66,25 @@ class RSSScraper(BaseScraper):
         items = []
 
         try:
-            # Expand environment variables in URL (e.g. ${LWN_TOKEN})
             feed_url = re.sub(
                 r'\$\{(\w+)\}',
                 lambda m: os.environ.get(m.group(1), m.group(0)).strip(),
                 str(source.url),
             )
 
-            # Fetch feed content
             response = await self.client.get(feed_url, follow_redirects=True)
             response.raise_for_status()
 
-            # Parse feed
             feed = feedparser.parse(response.text)
 
             for entry in feed.entries:
-                # Parse published date
                 published_at = self._parse_date(entry)
                 if not published_at or published_at < since:
                     continue
 
-                # Generate unique ID from feed URL and entry ID
                 feed_id = str(source.url).split("//")[1].replace("/", "_")
                 entry_id = entry.get("id", entry.get("link", ""))
-                unique_id = f"{feed_id}:{hash(entry_id)}"
 
-                # Extract content
                 content = self._extract_content(entry)
 
                 item = ContentItem(
@@ -126,17 +119,14 @@ class RSSScraper(BaseScraper):
         Returns:
             datetime: Parsed publication date or None
         """
-        # Try different date fields
         for field in ["published", "updated", "created"]:
             if field in entry:
                 try:
-                    # Try parsing structured time first
                     if f"{field}_parsed" in entry and entry[f"{field}_parsed"]:
                         return datetime.fromtimestamp(
                             calendar.timegm(entry[f"{field}_parsed"]),
                             tz=timezone.utc
                         )
-                    # Fallback to string parsing
                     date_str = entry[field]
                     return parsedate_to_datetime(date_str)
                 except Exception:
@@ -153,13 +143,11 @@ class RSSScraper(BaseScraper):
         Returns:
             str: Extracted text content
         """
-        # Try different content fields
         if "summary" in entry:
             return entry.summary
         elif "description" in entry:
             return entry.description
         elif "content" in entry and entry.content:
-            # content is usually a list
             return entry.content[0].get("value", "")
 
         return ""

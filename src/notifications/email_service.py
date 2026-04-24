@@ -1,4 +1,4 @@
-"""Email service for handling subscriptions and sending summaries."""
+"""Email delivery and subscription handling."""
 
 import imaplib
 import smtplib
@@ -15,13 +15,13 @@ try:
 except ImportError:
     markdown = None
 
-from ..models import EmailConfig
+from ..domain.models import EmailConfig
 
 logger = logging.getLogger(__name__)
 
 
-class EmailManager:
-    """Manages email subscriptions and sending summaries."""
+class EmailService:
+    """Manage email subscriptions and summary delivery."""
 
     def __init__(self, config: EmailConfig, console=None):
         self.config = config
@@ -42,24 +42,22 @@ class EmailManager:
             logger.warning(
                 f"Environment variable {self.config.password_env} not set. Email features may fail."
             )
-            self.console.print(f"[yellow]Warning: Environment variable {self.config.password_env} not set. Email features may fail.[/yellow]")
+            self.console.print(
+                f"[yellow]Warning: Environment variable {self.config.password_env} not set. Email features may fail.[/yellow]"
+            )
 
 
     def check_subscriptions(self, storage_manager):
-        """Checks inbox for subscription requests and updates subscriber list."""
+        """Check the inbox for subscription requests and update the subscriber list."""
         if not self.config.enabled:
             return
 
         try:
-            # Connect to IMAP
             mail = imaplib.IMAP4_SSL(self.config.imap_server, self.config.imap_port)
             mail.login(self.config.email_address, self.pwd)
             mail.select("INBOX")
 
-            # 1. Process Subscriptions
             keyword = self.config.subscribe_keyword
-            # We search ALL messages with SUBSCRIBE because sometimes clients
-            # (like your phone/web) mark incoming emails as read before the script catches them.
             search_crit = f'(UNSEEN SUBJECT "{keyword}")'
 
             status, messages = mail.search(None, search_crit)
@@ -69,7 +67,6 @@ class EmailManager:
                 subscribers = storage_manager.load_subscribers()
 
                 for e_id in email_ids:
-                    # Fetch the email
                     _, msg_data = mail.fetch(e_id, "(RFC822)")
                     for response_part in msg_data:
                         if isinstance(response_part, tuple):
@@ -89,7 +86,6 @@ class EmailManager:
 
                                     if email_addr not in subscribers:
                                         storage_manager.add_subscriber(email_addr)
-                                        # Reload list to keep it fresh
                                         subscribers = storage_manager.load_subscribers()
                                         self._send_reply(
                                             email_addr,
@@ -100,7 +96,6 @@ class EmailManager:
                                     else:
                                         logger.info(f"Already subscribed: {email_addr}")
 
-            # 2. Process Unsubscriptions
             unsub_keyword = self.config.unsubscribe_keyword
             search_crit_unsub = f'(UNSEEN SUBJECT "{unsub_keyword}")'
 
@@ -149,7 +144,7 @@ class EmailManager:
     def send_daily_summary(
         self, summary_md: str, subject: str, subscribers: List[str]
     ):
-        """Sends the daily summary to all subscribers."""
+        """Send the daily summary to all subscribers."""
         if not self.config.enabled or not subscribers:
             return
 
@@ -159,7 +154,6 @@ class EmailManager:
             else f"<pre>{summary_md}</pre>"
         )
 
-        # Simple HTML wrapper for better presentation
         html_body = f"""
         <!DOCTYPE html>
         <html>
@@ -196,7 +190,6 @@ class EmailManager:
                     msg["From"] = f"{self.config.sender_name} <{self.config.email_address}>"
                     msg["To"] = subscriber
 
-                    # Create plain text and HTML versions
                     text_part = MIMEText(summary_md, "plain")
                     html_part = MIMEText(html_body, "html")
 

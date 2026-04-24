@@ -27,7 +27,7 @@ class HorizonRuntime:
     horizon_path: Path
     ContentItem: Any
     Config: Any
-    StorageManager: Any
+    FileStore: Any
     HorizonOrchestrator: Any
     create_ai_client: Any
     ContentAnalyzer: Any
@@ -115,9 +115,9 @@ def load_runtime(horizon_path: Path) -> HorizonRuntime:
         sys.path.insert(0, horizon_path_str)
 
     try:
-        models = importlib.import_module("src.models")
-        storage = importlib.import_module("src.storage.manager")
-        orchestrator = importlib.import_module("src.orchestrator")
+        models = importlib.import_module("src.domain.models")
+        storage = importlib.import_module("src.storage.file_store")
+        orchestrator = importlib.import_module("src.pipeline")
         ai_client = importlib.import_module("src.ai.client")
         analyzer = importlib.import_module("src.ai.analyzer")
         enricher = importlib.import_module("src.ai.enricher")
@@ -133,7 +133,7 @@ def load_runtime(horizon_path: Path) -> HorizonRuntime:
         horizon_path=horizon_path,
         ContentItem=models.ContentItem,
         Config=models.Config,
-        StorageManager=storage.StorageManager,
+        FileStore=storage.FileStore,
         HorizonOrchestrator=orchestrator.HorizonOrchestrator,
         create_ai_client=ai_client.create_ai_client,
         ContentAnalyzer=analyzer.ContentAnalyzer,
@@ -160,7 +160,7 @@ def make_storage(runtime: HorizonRuntime, config_path: Path) -> Any:
     """Build Horizon storage manager bound to config's data directory."""
 
     data_dir = str(config_path.parent.resolve())
-    return runtime.StorageManager(data_dir=data_dir)
+    return runtime.FileStore(data_dir=data_dir)
 
 
 def make_orchestrator(runtime: HorizonRuntime, config: Any, storage: Any) -> Any:
@@ -239,7 +239,10 @@ def get_source_counts(items: list[Any]) -> dict[str, int]:
 
 
 def _is_horizon_repo(path: Path) -> bool:
-    return (path / "src" / "main.py").exists() and (path / "pyproject.toml").exists()
+    return (
+        ((path / "src" / "cli.py").exists() or (path / "src" / "main.py").exists())
+        and (path / "pyproject.toml").exists()
+    )
 
 
 def _load_mcp_secrets(horizon_path: Path, override: bool = False) -> None:

@@ -8,9 +8,8 @@ from urllib.parse import urlparse
 import httpx
 from rich.console import Console
 
-from .models import Config, ContentItem
-from .storage.manager import StorageManager
-from .services.emailer import EmailManager
+from .domain.models import Config, ContentItem
+from .notifications.email_service import EmailService
 from .scrapers.github import GitHubScraper
 from .scrapers.hackernews import HackerNewsScraper
 from .scrapers.rss import RSSScraper
@@ -21,42 +20,30 @@ from .ai.analyzer import ContentAnalyzer
 from .ai.summarizer import DailySummarizer
 from .ai.enricher import ContentEnricher
 from .ai.tokens import get_usage_snapshot
+from .storage.file_store import FileStore
 
 
 class HorizonOrchestrator:
     """Orchestrates the complete workflow for content aggregation and analysis."""
 
-    def __init__(self, config: Config, storage: StorageManager):
-        """Initialize orchestrator.
-
-        Args:
-            config: Application configuration
-            storage: Storage manager
-        """
+    def __init__(self, config: Config, storage: FileStore):
         self.config = config
         self.storage = storage
         self.console = Console()
-        self.email_manager = EmailManager(config.email, console=self.console) if config.email else None
+        self.email_service = EmailService(config.email, console=self.console) if config.email else None
 
     async def run(self, force_hours: int = None) -> None:
-        """Execute the complete workflow.
-
-        Args:
-            force_hours: Optional override for time window in hours
-        """
+        """Execute the complete workflow."""
         self.console.print("[bold cyan]🌅 Horizon - Starting aggregation...[/bold cyan]\n")
 
-        # Check email subscriptions if configured
-        if self.email_manager and self.config.email and self.config.email.enabled:
+        if self.email_service and self.config.email and self.config.email.enabled:
             self.console.print("📧 Checking for new email subscriptions...")
-            self.email_manager.check_subscriptions(self.storage)
+            self.email_service.check_subscriptions(self.storage)
 
         try:
-            # 1. Determine time window
             since = self._determine_time_window(force_hours)
             self.console.print(f"📅 Fetching content since: {since.strftime('%Y-%m-%d %H:%M:%S')}\n")
 
-            # 2. Fetch content from all sources
             all_items = await self.fetch_all_sources(since)
             self.console.print(f"📥 Fetched {len(all_items)} items from all sources\n")
 
@@ -64,7 +51,6 @@ class HorizonOrchestrator:
                 self.console.print("[yellow]No new content found. Exiting.[/yellow]")
                 return
 
-            # 3. Merge cross-source duplicates (same URL from different sources)
             merged_items = self.merge_cross_source_duplicates(all_items)
             if len(merged_items) < len(all_items):
                 self.console.print(
@@ -72,11 +58,9 @@ class HorizonOrchestrator:
                     f"→ {len(merged_items)} unique items\n"
                 )
 
-            # 4. Analyze with AI
             analyzed_items = await self._analyze_content(merged_items)
             self.console.print(f"🤖 Analyzed {len(analyzed_items)} items with AI\n")
 
-            # 5. Filter by score threshold
             threshold = self.config.filtering.ai_score_threshold
             important_items = [
                 item for item in analyzed_items
@@ -88,7 +72,6 @@ class HorizonOrchestrator:
                 f"⭐️ {len(important_items)} items scored ≥ {threshold}\n"
             )
 
-            # 5.5 Semantic deduplication: drop items covering the same topic
             deduped_items = await self.merge_topic_duplicates(important_items)
             if len(deduped_items) < len(important_items):
                 self.console.print(
@@ -97,7 +80,6 @@ class HorizonOrchestrator:
                 )
             important_items = deduped_items
 
-            # Show per-sub-source selection breakdown
             selected_counts: Dict[str, int] = defaultdict(int)
             for item in important_items:
                 key = f"{item.source_type.value}/{self._sub_source_label(item)}"
@@ -106,19 +88,15 @@ class HorizonOrchestrator:
                 self.console.print(f"      • {source_key}: {count}")
             self.console.print("")
 
-            # 6. Search related stories + enrich with background knowledge (2nd AI pass)
             await self._enrich_important_items(important_items)
 
-            # 7. Generate and save daily summaries for each configured language
             today = datetime.utcnow().strftime("%Y-%m-%d")
             for lang in self.config.ai.languages:
                 summary = await self._generate_summary(important_items, today, len(all_items), language=lang)
 
-                # Save to data/summaries/
                 summary_path = self.storage.save_daily_summary(today, summary, language=lang)
                 self.console.print(f"💾 Saved {lang.upper()} summary to: {summary_path}\n")
 
-                # Copy to docs/ for GitHub Pages
                 try:
                     from pathlib import Path
 
@@ -128,7 +106,6 @@ class HorizonOrchestrator:
 
                     dest_path = posts_dir / post_filename
 
-                    # Add Jekyll front matter
                     front_matter = (
                         "---\n"
                         "layout: default\n"
@@ -138,7 +115,6 @@ class HorizonOrchestrator:
                         "---\n\n"
                     )
 
-                    # Strip leading H1 header to avoid duplication with Jekyll title
                     summary_content = summary
                     first_line = summary_content.strip().split("\n")[0]
                     if first_line.startswith("# "):
@@ -153,12 +129,11 @@ class HorizonOrchestrator:
                 except Exception as e:
                     self.console.print(f"[yellow]⚠️  Failed to copy {lang.upper()} summary to docs/: {e}[/yellow]\n")
 
-                # Send email if configured
-                if self.email_manager and self.config.email and self.config.email.enabled:
+                if self.email_service and self.config.email and self.config.email.enabled:
                     self.console.print(f"📧 Sending {lang.upper()} email summary...")
                     subscribers = self.storage.load_subscribers()
                     subject = f"Horizon Summary ({lang.upper()}) - {today}"
-                    self.email_manager.send_daily_summary(summary, subject, subscribers)
+                    self.email_service.send_daily_summary(summary, subject, subscribers)
 
             self.console.print("[bold green]✅ Horizon completed successfully![/bold green]")
             usage = get_usage_snapshot()
@@ -202,35 +177,28 @@ class HorizonOrchestrator:
         async with httpx.AsyncClient(timeout=30.0) as client:
             tasks = []
 
-            # GitHub sources
             if self.config.sources.github:
                 github_scraper = GitHubScraper(self.config.sources.github, client)
                 tasks.append(self._fetch_with_progress("GitHub", github_scraper, since))
 
-            # Hacker News
             if self.config.sources.hackernews.enabled:
                 hn_scraper = HackerNewsScraper(self.config.sources.hackernews, client)
                 tasks.append(self._fetch_with_progress("Hacker News", hn_scraper, since))
 
-            # RSS feeds
             if self.config.sources.rss:
                 rss_scraper = RSSScraper(self.config.sources.rss, client)
                 tasks.append(self._fetch_with_progress("RSS Feeds", rss_scraper, since))
 
-            # Reddit
             if self.config.sources.reddit.enabled:
                 reddit_scraper = RedditScraper(self.config.sources.reddit, client)
                 tasks.append(self._fetch_with_progress("Reddit", reddit_scraper, since))
 
-            # Telegram
             if self.config.sources.telegram.enabled:
                 telegram_scraper = TelegramScraper(self.config.sources.telegram, client)
                 tasks.append(self._fetch_with_progress("Telegram", telegram_scraper, since))
 
-            # Fetch all concurrently
             results = await asyncio.gather(*tasks, return_exceptions=True)
 
-            # Flatten results
             all_items = []
             for result in results:
                 if isinstance(result, Exception):
@@ -255,7 +223,6 @@ class HorizonOrchestrator:
         items = await scraper.fetch(since)
         self.console.print(f"   Found {len(items)} items from {name}")
 
-        # Show per-sub-source breakdown when there are multiple sub-sources
         sub_counts: Dict[str, int] = defaultdict(int)
         for item in items:
             sub_counts[self._sub_source_label(item)] += 1
@@ -294,14 +261,12 @@ class HorizonOrchestrator:
         """
         def normalize_url(url: str) -> str:
             parsed = urlparse(str(url))
-            # Strip www prefix, trailing slashes, and fragments
             host = parsed.hostname or ""
             if host.startswith("www."):
                 host = host[4:]
             path = parsed.path.rstrip("/")
             return f"{host}{path}"
 
-        # Group by normalized URL
         url_groups: Dict[str, List[ContentItem]] = {}
         for item in items:
             key = normalize_url(str(item.url))
@@ -313,19 +278,15 @@ class HorizonOrchestrator:
                 merged.append(group[0])
                 continue
 
-            # Pick the item with the richest content as primary
             primary = max(group, key=lambda x: len(x.content or ""))
 
-            # Merge metadata and source info from other items
             all_sources = set()
             for item in group:
                 all_sources.add(item.source_type.value)
-                # Merge metadata (engagement, discussion, etc.)
                 for mk, mv in item.metadata.items():
                     if mk not in primary.metadata or not primary.metadata[mk]:
                         primary.metadata[mk] = mv
 
-                # Append content (e.g., comments from another source)
                 if item is not primary and item.content:
                     if primary.content and item.content not in primary.content:
                         primary.content = (primary.content or "") + f"\n\n--- From {item.source_type.value} ---\n" + item.content
@@ -353,7 +314,6 @@ class HorizonOrchestrator:
         from .ai.prompts import TOPIC_DEDUP_SYSTEM, TOPIC_DEDUP_USER
         from .ai.utils import parse_json_response
 
-        # Build the item list for the prompt
         lines = []
         for i, item in enumerate(items):
             tags = ", ".join(item.ai_tags) if item.ai_tags else "—"
@@ -380,7 +340,6 @@ class HorizonOrchestrator:
         if not duplicate_groups:
             return items
 
-        # Build a set of indices to drop (all non-primary duplicates)
         drop_indices: set[int] = set()
         for group in duplicate_groups:
             if not isinstance(group, list) or len(group) < 2:
@@ -395,7 +354,6 @@ class HorizonOrchestrator:
                 if dup_idx == primary_idx:
                     continue
                 dup = items[dup_idx]
-                # Merge comments/content from the duplicate into the primary
                 if dup.content:
                     if not primary.content or dup.content not in primary.content:
                         label = dup.source_type.value

@@ -6,8 +6,8 @@ from datetime import datetime
 from typing import List, Optional
 import httpx
 
-from .base import BaseScraper
-from ..models import ContentItem, SourceType, GitHubSourceConfig
+from .base_scraper import BaseScraper
+from ..domain.models import ContentItem, SourceType, GitHubSourceConfig
 
 logger = logging.getLogger(__name__)
 
@@ -97,7 +97,6 @@ class GitHubScraper(BaseScraper):
                 if created_at < since:
                     continue
 
-                # Filter interesting event types
                 event_type = event["type"]
                 if event_type not in [
                     "PushEvent", "CreateEvent", "ReleaseEvent",
@@ -131,7 +130,6 @@ class GitHubScraper(BaseScraper):
         repo_name = event["repo"]["name"]
         repo_url = f"https://github.com/{repo_name}"
 
-        # Generate title and content based on event type
         if event_type == "PushEvent":
             commits = event["payload"].get("commits", [])
             title = f"{username} pushed {len(commits)} commit(s) to {repo_name}"

@@ -5,10 +5,8 @@ For items that pass the score threshold, this module:
 2. Feeds search results + item content to AI to generate grounded background knowledge
 """
 
-import json
-import re
-import sys
 import os
+import sys
 from typing import List, Optional
 from tenacity import retry, stop_after_attempt, wait_exponential
 from rich.progress import Progress, SpinnerColumn, BarColumn, TextColumn, MofNCompleteColumn
@@ -20,7 +18,7 @@ from .prompts import (
     CONTENT_ENRICHMENT_SYSTEM, CONTENT_ENRICHMENT_USER,
 )
 from .utils import parse_json_response
-from ..models import ContentItem
+from ..domain.models import ContentItem
 
 
 class ContentEnricher:
@@ -58,7 +56,6 @@ class ContentEnricher:
             List of dicts with keys: title, url, body
         """
         try:
-            # Suppress primp "Impersonate ... does not exist" stderr warning
             stderr = sys.stderr
             sys.stderr = open(os.devnull, "w")
             try:
@@ -128,7 +125,6 @@ class ContentEnricher:
         Args:
             item: Content item to enrich (modified in-place via metadata)
         """
-        # Extract content text and comments separately
         content_text = ""
         comments_text = ""
         if item.content:
@@ -139,10 +135,8 @@ class ContentEnricher:
             else:
                 content_text = item.content[:4000]
 
-        # Step 1: AI identifies concepts to explain
         queries = await self._extract_concepts(item, content_text)
 
-        # Step 2: Search web for each concept
         all_results = []
         web_sections = []
         for query in queries:
@@ -153,10 +147,8 @@ class ContentEnricher:
                 web_sections.append(f"**{query}:**\n" + "\n".join(lines))
         web_context = "\n\n".join(web_sections) if web_sections else ""
 
-        # Index of available URLs for citation validation
         available_urls = {r["url"]: r["title"] for r in all_results if r.get("url")}
 
-        # Step 3: AI generates background grounded in search results
         user_prompt = CONTENT_ENRICHMENT_USER.format(
             title=item.title,
             url=str(item.url),
@@ -174,15 +166,11 @@ class ContentEnricher:
             user=user_prompt,
         )
 
-        # Parse JSON response with robust fallback
         result = self._parse_json_response(response)
         if result is None:
-            # Gracefully degrade: skip enrichment instead of raising
-            # (raising would trigger retries that won't help with a parse error)
             print(f"Warning: could not parse enrichment response for {item.id}, skipping enrichment")
             return
 
-        # Combine structured sub-fields into per-language detailed_summary
         for lang in ("en", "zh"):
             if result.get(f"title_{lang}"):
                 val = result[f"title_{lang}"]
@@ -204,7 +192,6 @@ class ContentEnricher:
                 val = result[f"community_discussion_{lang}"]
                 item.metadata[f"community_discussion_{lang}"] = val.get("text") or str(val) if isinstance(val, dict) else str(val)
 
-        # Store citation sources — only URLs that actually came from our search results
         if result.get("sources") and available_urls:
             valid = [
                 {"url": u, "title": available_urls[u]}
@@ -214,7 +201,6 @@ class ContentEnricher:
             if valid:
                 item.metadata["sources"] = valid
 
-        # Backward-compatible fallback fields (English as default)
         item.metadata["detailed_summary"] = item.metadata.get("detailed_summary_en", "")
         item.metadata["background"] = item.metadata.get("background_en", "")
         item.metadata["community_discussion"] = item.metadata.get("community_discussion_en", "")

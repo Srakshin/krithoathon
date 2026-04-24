@@ -10,14 +10,14 @@ from rich.prompt import Prompt, Confirm
 from rich.table import Table
 from rich.panel import Panel
 
-from ..models import (
+from ..domain.models import (
     AIConfig, AIProvider, Config, FilteringConfig, SourcesConfig,
     GitHubSourceConfig, HackerNewsConfig, RSSSourceConfig,
     RedditConfig, RedditSubredditConfig, RedditUserConfig,
     TelegramConfig, TelegramChannelConfig,
 )
-from ..storage.manager import StorageManager
-from .presets import load_presets, match_sources
+from ..storage.file_store import FileStore
+from .preset_library import load_presets, match_sources
 
 
 console = Console()
@@ -47,7 +47,6 @@ def configure_ai() -> Optional[AIConfig]:
     """
     console.print("\n[bold]Step 1: AI Configuration[/bold]\n")
 
-    # Check for existing .env
     load_dotenv()
 
     providers = [p.value for p in AIProvider]
@@ -62,7 +61,6 @@ def configure_ai() -> Optional[AIConfig]:
 
     base_url = Prompt.ask("Base URL (leave empty for default)", default="")
 
-    # Determine default env var name
     default_env = {
         "anthropic": "ANTHROPIC_API_KEY",
         "openai": "OPENAI_API_KEY",
@@ -76,7 +74,6 @@ def configure_ai() -> Optional[AIConfig]:
         default=default_env.get(provider, "API_KEY"),
     )
 
-    # Check if the key is actually set
     if not os.getenv(api_key_env):
         console.print(
             f"[yellow]⚠  {api_key_env} is not set in environment or .env file.[/yellow]"
@@ -136,7 +133,6 @@ def select_sources(
         console.print("[yellow]No sources matched your interests.[/yellow]")
         return []
 
-    # Display the recommendation table
     console.print("\n[bold]Step 3: Review Recommended Sources[/bold]\n")
 
     table = Table(show_header=True, header_style="bold")
@@ -160,7 +156,6 @@ def select_sources(
 
     console.print(table)
 
-    # Let user toggle
     console.print(
         "\n[dim]Enter numbers to toggle off/on (e.g. '3 5 7'), or press Enter to accept all:[/dim]"
     )
@@ -239,7 +234,6 @@ def build_config(
                 fetch_limit=cfg.get("fetch_limit", 20),
             ))
 
-    # Always include HackerNews as a universal source
     hn_config = HackerNewsConfig(
         enabled=True,
         fetch_top_stories=30,
@@ -296,18 +290,14 @@ def merge_configs(new_config: Config, existing_config: Config) -> Config:
     """
     merged = new_config.model_copy(deep=True)
 
-    # Merge GitHub sources by unique key
     existing_gh = {_gh_key(s): s for s in existing_config.sources.github}
     for src in merged.sources.github:
         key = _gh_key(src)
         if key in existing_gh:
-            # Keep existing enabled state
             src.enabled = existing_gh[key].enabled
             del existing_gh[key]
-    # Append remaining existing sources
     merged.sources.github.extend(existing_gh.values())
 
-    # Merge RSS sources by URL
     existing_rss = {s.url: s for s in existing_config.sources.rss}
     for src in merged.sources.rss:
         if src.url in existing_rss:
@@ -315,7 +305,6 @@ def merge_configs(new_config: Config, existing_config: Config) -> Config:
             del existing_rss[src.url]
     merged.sources.rss.extend(existing_rss.values())
 
-    # Merge Reddit subreddits
     existing_subs = {
         s.subreddit: s
         for s in (existing_config.sources.reddit.subreddits or [])
@@ -343,18 +332,15 @@ def main():
     """Main entry point for the setup wizard."""
     print_banner()
 
-    storage = StorageManager(data_dir="data")
+    storage = FileStore(data_dir="data")
 
-    # Step 1: AI configuration
     ai_config = configure_ai()
     if ai_config is None:
         console.print("[red]Setup cancelled.[/red]")
         sys.exit(0)
 
-    # Step 2: Interest description
     interests = get_interests()
 
-    # Step 3: Preset library matching
     console.print("\n[dim]Fetching preset source library...[/dim]")
     try:
         presets = load_presets(prefer_api=True)
@@ -376,14 +362,13 @@ def main():
     else:
         console.print("[yellow]No preset sources matched — AI will try to recommend.[/yellow]")
 
-    # Step 4: AI recommendations (optional)
     ai_sources = []
     ai_available = bool(os.getenv(ai_config.api_key_env))
 
     if ai_available:
         if Confirm.ask("\nAsk AI for additional source recommendations?", default=True):
             console.print("[dim]Asking AI for recommendations...[/dim]")
-            from .ai_recommend import get_ai_recommendations_sync
+            from .source_recommender import get_ai_recommendations_sync
 
             ai_sources = get_ai_recommendations_sync(ai_config, interests, preset_sources)
             if ai_sources:
@@ -395,16 +380,13 @@ def main():
             f"\n[dim]Skipping AI recommendations ({ai_config.api_key_env} not set)[/dim]"
         )
 
-    # Step 5: Interactive source selection
     selected = select_sources(preset_sources, ai_sources)
 
     if not selected:
         console.print("[yellow]No sources selected. Adding HackerNews as default.[/yellow]")
 
-    # Step 6: Build config
     config = build_config(ai_config, selected)
 
-    # Merge with existing config if present
     try:
         existing = storage.load_config()
         if Confirm.ask("\nExisting config.json found. Merge new sources into it?", default=True):
@@ -412,10 +394,8 @@ def main():
     except FileNotFoundError:
         pass
 
-    # Save
     path = storage.save_config(config, backup=True)
 
-    # Summary
     console.print(Panel(
         f"[green]✓ Configuration saved to {path}[/green]\n\n"
         f"  AI:      {ai_config.provider.value} / {ai_config.model}\n"

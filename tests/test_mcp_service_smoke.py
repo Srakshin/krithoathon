@@ -5,7 +5,7 @@ from datetime import datetime, timezone
 from pathlib import Path
 from types import SimpleNamespace
 
-from src.models import ContentItem, SourceType
+from src.domain.models import ContentItem, SourceType
 from src.mcp.server import hz_get_metrics
 from src.mcp.service import HorizonPipelineService
 

@@ -1,7 +1,4 @@
 """Content analysis using AI."""
-
-import json
-import re
 from typing import List, Optional
 from tenacity import retry, stop_after_attempt, wait_exponential
 from rich.progress import Progress, SpinnerColumn, BarColumn, TextColumn, MofNCompleteColumn
@@ -9,7 +6,7 @@ from rich.progress import Progress, SpinnerColumn, BarColumn, TextColumn, MofNCo
 from .client import AIClient
 from .prompts import CONTENT_ANALYSIS_SYSTEM, CONTENT_ANALYSIS_USER
 from .utils import parse_json_response
-from ..models import ContentItem
+from ..domain.models import ContentItem
 
 
 class ContentAnalyzer:
@@ -68,10 +65,8 @@ class ContentAnalyzer:
         Args:
             item: Content item to analyze (modified in-place)
         """
-        # Prepare content section
         content_section = ""
         if item.content:
-            # Split off comments if present
             content_text = item.content
             if "--- Top Comments ---" in content_text:
                 main, comments_part = content_text.split("--- Top Comments ---", 1)
@@ -79,7 +74,6 @@ class ContentAnalyzer:
             else:
                 content_section = f"Content: {content_text[:1000]}"
 
-        # Prepare discussion section (comments, engagement)
         discussion_parts = []
         if item.content and "--- Top Comments ---" in item.content:
             comments_part = item.content.split("--- Top Comments ---", 1)[1]
@@ -112,7 +106,6 @@ class ContentAnalyzer:
 
         discussion_section = "\n".join(discussion_parts) if discussion_parts else ""
 
-        # Generate user prompt
         user_prompt = CONTENT_ANALYSIS_USER.format(
             title=item.title,
             source=f"{item.source_type.value}",
@@ -122,13 +115,11 @@ class ContentAnalyzer:
             discussion_section=discussion_section
         )
 
-        # Get AI completion
         response = await self.client.complete(
             system=CONTENT_ANALYSIS_SYSTEM,
             user=user_prompt,
         )
 
-        # Parse JSON response with robust fallback
         result = self._parse_json_response(response)
         if result is None:
             print(f"Warning: could not parse analysis response for {item.id}, using defaults")
@@ -138,7 +129,6 @@ class ContentAnalyzer:
             item.ai_tags = []
             return
 
-        # Update item with analysis results
         item.ai_score = float(result.get("score", 0))
         item.ai_reason = result.get("reason", "")
         item.ai_summary = result.get("summary", item.title)

@@ -5,7 +5,7 @@ from typing import List, Dict
 
 import httpx
 
-from .models import ContentItem
+from ..domain.models import ContentItem
 
 HN_SEARCH_URL = "https://hn.algolia.com/api/v1/search"
 REDDIT_SEARCH_URL = "https://www.reddit.com/search.json"
@@ -79,13 +79,11 @@ async def search_related(
             search_reddit(query, client),
             return_exceptions=True,
         )
-        # Treat exceptions as empty results
         if isinstance(hn_results, Exception):
             hn_results = []
         if isinstance(reddit_results, Exception):
             reddit_results = []
 
-        # Dedup: remove results whose URL matches the item's own URL
         item_url = str(item.url).rstrip("/")
         related = []
         for r in hn_results + reddit_results:

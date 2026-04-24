@@ -7,12 +7,11 @@ from typing import List, Optional
 import asyncio
 import httpx
 
-from .base import BaseScraper
-from ..models import ContentItem, SourceType, HackerNewsConfig
+from .base_scraper import BaseScraper
+from ..domain.models import ContentItem, SourceType, HackerNewsConfig
 
 logger = logging.getLogger(__name__)
 
-# Max top-level comments to fetch per story
 TOP_COMMENTS_LIMIT = 5
 
 
@@ -35,11 +34,9 @@ class HackerNewsScraper(BaseScraper):
             fetch_count = self.config.get("fetch_top_stories", 30)
             story_ids = story_ids[:fetch_count]
 
-            # Fetch story details concurrently
             tasks = [self._fetch_story(story_id) for story_id in story_ids]
             stories = await asyncio.gather(*tasks, return_exceptions=True)
 
-            # Filter and process stories, then fetch comments
             items = []
             min_score = self.config.get("min_score", 100)
 
@@ -55,11 +52,9 @@ class HackerNewsScraper(BaseScraper):
                 if published_at < since:
                     continue
                 valid_stories.append(story)
-                # Queue comment fetching
                 comment_ids = story.get("kids", [])[:TOP_COMMENTS_LIMIT]
                 comment_tasks.append(self._fetch_comments(comment_ids))
 
-            # Fetch all comments concurrently
             all_comments = await asyncio.gather(*comment_tasks, return_exceptions=True)
 
             for story, comments in zip(valid_stories, all_comments):
@@ -104,7 +99,6 @@ class HackerNewsScraper(BaseScraper):
         author = story.get("by", "unknown")
         published_at = datetime.fromtimestamp(story["time"], tz=timezone.utc)
 
-        # Build content: original text + top comments
         parts = []
         if story.get("text"):
             parts.append(story["text"])
@@ -114,9 +108,7 @@ class HackerNewsScraper(BaseScraper):
             for c in comments:
                 commenter = c.get("by", "anon")
                 text = c.get("text", "")
-                # Strip HTML tags roughly
                 text = re.sub(r'<[^>]+>', ' ', text).strip()
-                # Truncate very long comments
                 if len(text) > 500:
                     text = text[:497] + "..."
                 parts.append(f"[{commenter}]: {text}")

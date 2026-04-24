@@ -3,7 +3,7 @@
 import re
 from typing import List, Dict
 
-from ..models import ContentItem
+from ..domain.models import ContentItem
 
 
 _CJK = r"[\u4e00-\u9fff\u3400-\u4dbf]"
@@ -94,7 +94,6 @@ class DailySummarizer:
             "---\n\n"
         )
 
-        # TOC
         toc_entries = []
         for i, item in enumerate(items):
             _t = item.metadata.get(f"title_{language}") or item.title
@@ -136,7 +135,6 @@ class DailySummarizer:
             background = _pangu(background)
             discussion = _pangu(discussion)
 
-        # Source line with parts joined by " · ", link appended at end
         source_type = item.source_type.value
         source_parts = [source_type]
         if meta.get("subreddit"):
@@ -148,7 +146,7 @@ class DailySummarizer:
         if item.published_at:
             day = item.published_at.strftime("%d").lstrip("0")
             source_parts.append(item.published_at.strftime(f"%b {day}, %H:%M"))
-        source_line = " \u00b7 ".join(source_parts)  # ·
+        source_line = " \u00b7 ".join(source_parts)
 
         lines = [
             f'<a id="item-{index}"></a>',

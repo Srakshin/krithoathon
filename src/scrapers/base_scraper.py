@@ -5,7 +5,7 @@ from datetime import datetime
 from typing import List
 import httpx
 
-from ..models import ContentItem
+from ..domain.models import ContentItem
 
 
 class BaseScraper(ABC):
@@ -31,7 +31,7 @@ class BaseScraper(ABC):
         Returns:
             List[ContentItem]: Fetched content items
         """
-        pass
+        raise NotImplementedError
 
     def _generate_id(self, source_type: str, subtype: str, native_id: str) -> str:
         """Generate unique content item ID.

@@ -8,7 +8,7 @@ from unittest.mock import AsyncMock, MagicMock, patch
 import pytest
 
 from src.ai.client import MiniMaxClient, create_ai_client
-from src.models import AIConfig, AIProvider
+from src.domain.models import AIConfig, AIProvider
 
 
 def _make_config(**overrides) -> AIConfig:
@@ -67,7 +67,6 @@ class TestMiniMaxClientComplete:
         assert result == '{"score": 8}'
         call_kwargs = mock_create.call_args[1]
         assert call_kwargs["model"] == "MiniMax-M2.7"
-        # response_format should NOT be present (MiniMax doesn't support it)
         assert "response_format" not in call_kwargs
 
     @pytest.mark.asyncio

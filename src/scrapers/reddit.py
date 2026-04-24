@@ -2,14 +2,13 @@
 
 import asyncio
 import logging
-import re
 from datetime import datetime, timezone
 from typing import List, Optional
 
 import httpx
 
-from .base import BaseScraper
-from ..models import ContentItem, RedditConfig, RedditSubredditConfig, RedditUserConfig, SourceType
+from .base_scraper import BaseScraper
+from ..domain.models import ContentItem, RedditConfig, RedditSubredditConfig, RedditUserConfig, SourceType
 
 logger = logging.getLogger(__name__)
 
@@ -148,13 +147,11 @@ class RedditScraper(BaseScraper):
         subreddit = post.get("subreddit", "")
         discussion_url = f"https://www.reddit.com{post.get('permalink', '')}"
 
-        # For link posts, use the external URL; for self posts, use the discussion URL
         url = discussion_url if is_self else post.get("url", discussion_url)
 
         author = post.get("author", "unknown")
         created = datetime.fromtimestamp(post.get("created_utc", 0), tz=timezone.utc)
 
-        # Build content
         parts = []
         if post.get("selftext"):
             text = post["selftext"]

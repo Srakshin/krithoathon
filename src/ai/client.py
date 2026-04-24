@@ -9,7 +9,7 @@ from openai import AsyncOpenAI
 from google import genai
 from google.genai import types
 
-from ..models import AIConfig, AIProvider
+from ..domain.models import AIConfig, AIProvider
 from .tokens import record_usage
 
 
