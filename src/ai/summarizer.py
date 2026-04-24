@@ -85,26 +85,50 @@ class DailySummarizer:
         """
         labels = LABELS.get(language, LABELS["en"])
 
-        if not items:
+        # Filter out Irrelevant items explicitly
+        valid_items = [itm for itm in items if itm.category != "Irrelevant" and itm.category in [
+            "Competitor Updates", "User Pain Points", "Emerging Tech Trends"
+        ]]
+
+        if not valid_items:
             return self._generate_empty_summary(date, total_fetched, labels)
 
         header = (
             f"# {labels['header']} - {date}\n\n"
-            f"> From {total_fetched} items, {len(items)} important content pieces were selected\n\n"
+            f"> From {total_fetched} items, {len(valid_items)} highly relevant pieces were selected across key market intelligence categories.\n\n"
             "---\n\n"
         )
+        
+        target_categories = ["Competitor Updates", "User Pain Points", "Emerging Tech Trends"]
 
         toc_entries = []
-        for i, item in enumerate(items):
-            _t = item.metadata.get(f"title_{language}") or item.title
-            t = str(_t).replace("[", "(").replace("]", ")")
-            if language == "zh":
-                t = _pangu(t)
-            score = item.ai_score or "?"
-            toc_entries.append(f"{i + 1}. [{t}](#item-{i + 1}) \u2b50\ufe0f {score}/10")
-        toc = "\n".join(toc_entries) + "\n\n---\n\n"
+        parts = []
+        global_index = 1
+        
+        for category in target_categories:
+            cat_items = [itm for itm in valid_items if itm.category == category]
+            if not cat_items:
+                continue
+                
+            toc_entries.append(f"### {category}")
+            parts.append(f"\n# {category}\n\n")
+            
+            for item in cat_items:
+                _t = item.metadata.get(f"title_{language}") or item.title
+                t = str(_t).replace("[", "(").replace("]", ")")
+                if language == "zh":
+                    t = _pangu(t)
+                score = item.ai_score or "?"
+                # TOC link
+                toc_entries.append(f"- [{t}](#item-{global_index}) \u2b50\ufe0f {score}/10")
+                
+                # Content part
+                parts.append(self._format_item(item, labels, language, global_index))
+                global_index += 1
+                
+            toc_entries.append("")
 
-        parts = [self._format_item(item, labels, language, i + 1) for i, item in enumerate(items)]
+        toc = "\n".join(toc_entries) + "\n\n---\n\n"
 
         return header + toc + "".join(parts)
 

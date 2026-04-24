@@ -132,7 +132,16 @@ class ContentAnalyzer:
             return
 
         item.category = result.get("category", "Unknown")
-        item.ai_score = 10.0 if item.category in ['Competitor Updates', 'User Pain Points', 'Emerging Tech Trends'] else 0.0
-        item.ai_reason = f"Categorized as {item.category}"
+        
+        fallback_score = 10.0 if item.category in ['Competitor Updates', 'User Pain Points', 'Emerging Tech Trends'] else 0.0
+        try:
+            item.ai_score = float(result.get("score", fallback_score))
+        except (ValueError, TypeError):
+            item.ai_score = fallback_score
+            
+        if item.category == "Irrelevant" and item.ai_score > 5.0:
+            item.ai_score = 0.0
+            
+        item.ai_reason = f"Categorized as {item.category} (score: {item.ai_score})"
         item.ai_summary = result.get("summary", item.title)
-        item.ai_tags = [item.category] if item.category != "Unknown" else []
+        item.ai_tags = [item.category] if item.category not in ["Unknown", "Irrelevant"] else []

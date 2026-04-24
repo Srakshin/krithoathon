@@ -62,3 +62,21 @@ class FileStore:
     def _save_subscribers(self, subscribers: list[str]) -> None:
         subscribers_path = self.data_dir / "subscribers.json"
         subscribers_path.write_text(json.dumps(subscribers, indent=2), encoding="utf-8")
+
+    def save_summary(self, summary_md: str, date: str, language: str = "en") -> None:
+        """Save summary to data_dir/summaries and potentially docs/_posts."""
+        filename = f"{date}-summary-{language}.md"
+        
+        # Save to local data/summaries/
+        local_path = self.summaries_dir / filename
+        local_path.write_text(summary_md, encoding="utf-8")
+        
+        # Attempt to publish to docs/_posts if it exists
+        # Navigate up to the project root assuming data/ is inside it or next to it
+        # Actually self.data_dir is usually at project root.
+        docs_posts_dir = self.data_dir.parent / "docs" / "_posts"
+        if docs_posts_dir.exists() and docs_posts_dir.is_dir():
+            post_filename = f"{date}-morning-pulse-{language}.md"
+            docs_path = docs_posts_dir / post_filename
+            # Prepend Jekyll/Hugo frontmatter if we wanted, but the prompt just says save a copy
+            docs_path.write_text(summary_md, encoding="utf-8")

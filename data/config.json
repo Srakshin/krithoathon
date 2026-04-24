@@ -33,22 +33,16 @@
     },
     "rss": [
       {
-        "name": "EdTech News Feed 1",
-        "url": "https://example.com/feeds/edtech-news-1.xml",
-        "enabled": true,
-        "category": "school-management-software"
-      },
-      {
-        "name": "EdTech News Feed 2",
-        "url": "https://example.com/feeds/edtech-news-2.xml",
-        "enabled": true,
-        "category": "teacher-tools"
-      },
-      {
-        "name": "EdTech News Feed 3",
-        "url": "https://example.com/feeds/edtech-news-3.xml",
+        "name": "EdSurge",
+        "url": "https://feeds.feedburner.com/EdSurge",
         "enabled": true,
         "category": "edtech-trends"
+      },
+      {
+        "name": "TechCrunch Education",
+        "url": "https://techcrunch.com/category/education/feed/",
+        "enabled": true,
+        "category": "competitors"
       }
     ],
     "reddit": {

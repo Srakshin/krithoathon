@@ -21,17 +21,20 @@ Respond with valid JSON only:
 If there are no duplicates at all, return: {{"duplicates": []}}"""
 
 CONTENT_ANALYSIS_SYSTEM = """You are a data categorization engine.
-Strictly categorize the provided text into one of three exact buckets:
+Strictly categorize the provided text into one of EXACTLY four buckets:
 - 'Competitor Updates'
 - 'User Pain Points'
 - 'Emerging Tech Trends'
+- 'Irrelevant'
 
+If the item is not highly relevant to EdTech (educational technology, school management, teacher workflows, etc.), bucket it as 'Irrelevant'.
 Do not use any other categories. Your output must strictly adhere to the required JSON format."""
 
 
 CONTENT_ANALYSIS_USER = """Analyze the following content and provide a JSON response with:
-- category: The exact category bucket it falls into ('Competitor Updates', 'User Pain Points', or 'Emerging Tech Trends')
+- category: The exact category bucket it falls into ('Competitor Updates', 'User Pain Points', 'Emerging Tech Trends', or 'Irrelevant')
 - summary: A brief summary of the content
+- score: A float between 0.0 and 10.0 indicating how important/relevant this item is to an EdTech CEO (Irrelevant items should have low scores like 0.0-3.0; important trends/pain points should have high scores like 8.0-10.0).
 
 Content:
 Title: {title}
@@ -44,7 +47,8 @@ URL: {url}
 Respond with valid JSON only:
 {{
   "category": "<category>",
-  "summary": "<brief-summary>"
+  "summary": "<brief-summary>",
+  "score": <float>
 }}"""
 
 CONCEPT_EXTRACTION_SYSTEM = """You identify technical concepts in news that a reader might not know.

@@ -51,10 +51,17 @@ class HorizonOrchestrator:
                 self.console.print("[yellow]No new content found. Exiting.[/yellow]")
                 return
 
-            merged_items = self.merge_cross_source_duplicates(all_items)
-            if len(merged_items) < len(all_items):
+            filtered_items = self._keyword_filter(all_items)
+            if len(filtered_items) < len(all_items):
                 self.console.print(
-                    f"🔗 Merged {len(all_items) - len(merged_items)} cross-source duplicates "
+                    f"🎯 Filtered {len(all_items) - len(filtered_items)} non-relevant items "
+                    f"→ {len(filtered_items)} items match keywords\n"
+                )
+
+            merged_items = self.merge_cross_source_duplicates(filtered_items)
+            if len(merged_items) < len(filtered_items):
+                self.console.print(
+                    f"🔗 Merged {len(filtered_items) - len(merged_items)} cross-source duplicates "
                     f"→ {len(merged_items)} unique items\n"
                 )
 
@@ -95,6 +102,9 @@ class HorizonOrchestrator:
             today = datetime.utcnow().strftime("%Y-%m-%d")
             for lang in self.config.ai.languages:
                 summary = await self._generate_summary(important_items, today, len(all_items), language=lang)
+                
+                self.storage.save_summary(summary, today, language=lang)
+                self.console.print(f"💾 Saved {lang.upper()} summary to local storage")
 
                 if self.email_service and self.config.email and self.config.email.enabled:
                     self.console.print(f"📧 Sending {lang.upper()} email summary...")
@@ -212,6 +222,21 @@ class HorizonOrchestrator:
         if meta.get("repo"):
             return meta["repo"]
         return item.author or "unknown"
+
+    def _keyword_filter(self, items: List[ContentItem]) -> List[ContentItem]:
+        """Filter items by checking against configured keywords (if any)."""
+        keywords = getattr(self.config.filtering, "keywords", [])
+        if not keywords:
+            return items
+            
+        lower_keywords = [k.lower() for k in keywords]
+        filtered = []
+        for item in items:
+            title = (item.title or "").lower()
+            content = (item.content or "").lower()
+            if any(k in title or k in content for k in lower_keywords):
+                filtered.append(item)
+        return filtered
 
     def merge_cross_source_duplicates(self, items: List[ContentItem]) -> List[ContentItem]:
         """Merge items that point to the same URL from different sources.
