@@ -11,6 +11,7 @@ from typing import Annotated
 import jwt
 from dotenv import load_dotenv
 from fastapi import Depends, FastAPI, HTTPException, status
+from fastapi.middleware.cors import CORSMiddleware
 from fastapi.security import HTTPAuthorizationCredentials, HTTPBearer
 from supabase import Client, create_client
 
@@ -43,6 +44,14 @@ app = FastAPI(
     title="Morning Pulse API",
     description="Serves AI-generated daily intelligence digests with Supabase auth.",
     version="0.1.0",
+)
+
+app.add_middleware(
+    CORSMiddleware,
+    allow_origins=["http://localhost:5173", "http://127.0.0.1:5173"],  # Vite default port
+    allow_credentials=True,
+    allow_methods=["*"],
+    allow_headers=["*"],
 )
 
 # Bearer-token scheme used by Supabase Auth

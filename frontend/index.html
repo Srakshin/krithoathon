@@ -1,0 +1,204 @@
+<!DOCTYPE html>
+<html lang="en" class="dark">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Horizon – The Future of Software</title>
+    <meta name="description" content="A world-class, premium UI for your website, drawing inspiration from the modern developer tool ecosystem.">
+    <!-- Google Fonts -->
+    <link rel="preconnect" href="https://fonts.googleapis.com">
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600&family=Outfit:wght@400;500;700;800&display=swap" rel="stylesheet">
+    <!-- Custom CSS -->
+    <link rel="stylesheet" href="css/style.css">
+    <!-- Phosphor Icons (for line icons) -->
+    <script src="https://unpkg.com/@phosphor-icons/web"></script>
+</head>
+<body>
+    
+    <!-- Background grid -->
+    <div class="bg-grid"></div>
+    <div class="bg-glow"></div>
+
+    <!-- Navigation -->
+    <nav class="navbar hidden-onload">
+        <div class="nav-container">
+            <a href="#" class="logo">
+                <span class="logo-icon"><i class="ph ph-hexagon"></i></span>
+                Horizon
+            </a>
+            <div class="nav-links">
+                <a href="#features">Features</a>
+                <a href="#docs">Documentation</a>
+                <a href="#pricing">Pricing</a>
+            </div>
+            <div class="nav-actions">
+                <a href="#" class="btn-ghost">Log in</a>
+                <a href="#" class="btn-primary">Get Started <i class="ph ph-arrow-right"></i></a>
+            </div>
+        </div>
+    </nav>
+
+    <!-- Hero Section -->
+    <header class="hero">
+        <div class="hero-content hidden-onload">
+            <div class="pill-badge">
+                <span class="pulse-dot"></span>
+                Horizon v2.0 is now live
+            </div>
+            <h1 class="hero-title">
+                Design at the speed of <br>
+                <span class="text-gradient">pure thought.</span>
+            </h1>
+            <p class="hero-subtitle">
+                The world-class developer ecosystem that combines bold aesthetics with unmatched performance. Build, iterate, and deploy instantly.
+            </p>
+            
+            <div class="hero-search-container">
+                <i class="ph ph-magnifying-glass search-icon"></i>
+                <input type="text" class="hero-input" placeholder="What are we building today?">
+                <button class="btn-primary input-btn">Generate</button>
+            </div>
+            
+            <div class="hero-stats">
+                <div class="stat-item"><i class="ph ph-check-circle"></i> No generic templates</div>
+                <div class="stat-item"><i class="ph ph-lightning"></i> Real-time sync</div>
+            </div>
+        </div>
+        
+        <!-- Interactive Dashboard Mockup element in Hero -->
+        <div class="hero-visual hidden-onload scroll-reveal">
+            <div class="glass-panel main-dashboard-mockup">
+                <div class="panel-header">
+                    <div class="window-controls">
+                        <span></span><span></span><span></span>
+                    </div>
+                    <div class="window-title">horizon-workspace / main</div>
+                </div>
+                <div class="panel-body">
+                    <div class="mockup-sidebar">
+                        <div class="skeleton-line shimmer w-100"></div>
+                        <div class="skeleton-line shimmer w-80"></div>
+                        <div class="skeleton-line shimmer w-60"></div>
+                        <div class="skeleton-line shimmer w-80"></div>
+                    </div>
+                    <div class="mockup-content">
+                        <div class="skeleton-box shimmer mb-md"></div>
+                        <div class="dashboard-grid">
+                            <div class="skeleton-card shimmer"></div>
+                            <div class="skeleton-card shimmer"></div>
+                            <div class="skeleton-card shimmer"></div>
+                        </div>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </header>
+
+    <!-- Feature Section (Bento Grid) -->
+    <section id="features" class="features-section">
+        <div class="section-header scroll-reveal">
+            <div class="section-label">Features</div>
+            <h2>Everything you need. <br>Nothing you don't.</h2>
+        </div>
+
+        <div class="bento-grid">
+            <!-- Card 1: Large Span -->
+            <div class="bento-card bento-large scroll-reveal interactive-card">
+                <div class="spotlight"></div>
+                <div class="card-content">
+                    <div class="card-icon"><i class="ph ph-cpu"></i></div>
+                    <h3>Next-Gen Interactivity</h3>
+                    <p>Harness the power of fluid micro-animations and deep predictive routing. Your users won't just use your app, they'll feel it.</p>
+                </div>
+                <div class="card-visual visual-glow-1">
+                    <div class="floating-orb orb-1"></div>
+                    <div class="floating-orb orb-2"></div>
+                </div>
+            </div>
+
+            <!-- Card 2 -->
+            <div class="bento-card scroll-reveal interactive-card">
+                <div class="spotlight"></div>
+                <div class="card-content">
+                    <div class="card-icon"><i class="ph ph-rocket-launch"></i></div>
+                    <h3>Instant Deployments</h3>
+                    <p>Push to global edge networks in milliseconds. Zero config required.</p>
+                </div>
+            </div>
+
+            <!-- Card 3 -->
+            <div class="bento-card scroll-reveal interactive-card">
+                <div class="spotlight"></div>
+                <div class="card-content">
+                    <div class="card-icon"><i class="ph ph-shield-check"></i></div>
+                    <h3>Engineered for Scale</h3>
+                    <p>Enterprise-grade security natively baked into the foundation.</p>
+                </div>
+            </div>
+
+            <!-- Card 4: Horizontal Span -->
+            <div class="bento-card bento-wide scroll-reveal interactive-card">
+                <div class="spotlight"></div>
+                <div class="card-content">
+                    <div class="card-icon"><i class="ph ph-paint-brush-broad"></i></div>
+                    <h3>Uncompromising Aesthetics</h3>
+                    <p>Stop settling for boring SaaS patterns. Craft memorable digital experiences.</p>
+                </div>
+                <div class="card-visual visual-code">
+                    <pre><code><span class="keyword">const</span> design = <span class="function">innovate</span>({<br>  <span class="property">limits</span>: <span class="keyword">null</span>,<br>  <span class="property">boldness</span>: <span class="keyword">Infinity</span><br>});</code></pre>
+                </div>
+            </div>
+        </div>
+    </section>
+
+    <!-- Onboarding / Get Started Panel -->
+    <section class="onboarding-section">
+        <div class="onboarding-container scroll-reveal interactive-card glass-panel">
+            <div class="spotlight"></div>
+            <div class="onboarding-content">
+                <h2>Ready to redefine your stack?</h2>
+                <p>Join the future of web development. Build the crazy good UI you've always wanted.</p>
+                <div class="onboarding-actions">
+                    <a href="#" class="btn-primary btn-large">Start Building Now</a>
+                    <a href="#" class="btn-ghost btn-large">Read the Docs</a>
+                </div>
+            </div>
+            <div class="onboarding-bg-effect"></div>
+        </div>
+    </section>
+
+    <!-- Footer -->
+    <footer class="footer">
+        <div class="footer-container">
+            <div class="footer-brand">
+                <a href="#" class="logo">
+                    <span class="logo-icon"><i class="ph ph-hexagon"></i></span>
+                    Horizon
+                </a>
+                <p class="footer-tagline">Crafted with precision.</p>
+            </div>
+            <div class="footer-links">
+                <div class="link-column">
+                    <h4>Product</h4>
+                    <a href="#">Features</a>
+                    <a href="#">Integrations</a>
+                    <a href="#">Pricing</a>
+                </div>
+                <div class="link-column">
+                    <h4>Resources</h4>
+                    <a href="#">Documentation</a>
+                    <a href="#">Community</a>
+                    <a href="#">Blog</a>
+                </div>
+            </div>
+        </div>
+        <div class="footer-bottom">
+            <p>&copy; 2026 Horizon. All rights reserved.</p>
+        </div>
+    </footer>
+
+    <!-- Scripts -->
+    <script src="js/app.js"></script>
+</body>
+</html>
