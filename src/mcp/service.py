@@ -120,7 +120,7 @@ class HorizonPipelineService:
             "truncated": len(items) > max_items,
         }
 
-    def get_run_summary(self, run_id: str, language: str = "zh") -> dict[str, Any]:
+    def get_run_summary(self, run_id: str, language: str = "en") -> dict[str, Any]:
         """Read generated markdown summary for a run."""
 
         try:
@@ -396,7 +396,7 @@ class HorizonPipelineService:
     async def generate_summary(
         self,
         run_id: str,
-        language: str = "zh",
+        language: str = "en",
         source_stage: str | None = None,
         horizon_path: str | None = None,
         config_path: str | None = None,

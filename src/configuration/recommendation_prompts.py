@@ -27,7 +27,7 @@ Return a JSON object with this structure:
     {{
       "type": "rss" | "reddit_subreddit" | "github_user" | "github_repo" | "telegram",
       "description": "Brief English description",
-      "description_zh": "简短中文描述",
+      "description_zh": "Brief description in Simplified Chinese",
       "reason": "Why this source is relevant",
       "config": {{
         // For rss: {{"name": "...", "url": "...", "category": "..."}}

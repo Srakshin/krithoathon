@@ -83,7 +83,7 @@ def configure_ai() -> Optional[AIConfig]:
 
     languages = Prompt.ask(
         "Output languages (comma-separated)",
-        default="zh,en",
+        default="en",
     )
     lang_list = [l.strip() for l in languages.split(",") if l.strip()]
 
@@ -107,9 +107,9 @@ def get_interests() -> str:
     console.print("\n[bold]Step 2: Describe Your Interests[/bold]\n")
     console.print(
         "Describe what topics you'd like to follow. "
-        "You can use Chinese, English, or both.\n"
-        "[dim]Examples: \"LLM inference\", \"具身智能\", \"Rust systems programming\", "
-        "\"web security\", \"开源工具\"[/dim]\n"
+        "Use clear keywords or short phrases.\n"
+        "[dim]Examples: \"LLM inference\", \"embodied AI\", "
+        "\"Rust systems programming\", \"web security\", \"open source tools\"[/dim]\n"
     )
     interests = Prompt.ask("Your interests")
     return interests
