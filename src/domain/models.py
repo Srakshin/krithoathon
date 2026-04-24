@@ -29,6 +29,7 @@ class ContentItem(BaseModel):
     ai_reason: Optional[str] = None
     ai_summary: Optional[str] = None
     ai_tags: list[str] = Field(default_factory=list)
+    category: Optional[str] = None
 
 
 class AIProvider(str, Enum):

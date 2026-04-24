@@ -90,44 +90,11 @@ class HorizonOrchestrator:
 
             await self._enrich_important_items(important_items)
 
+            self._insert_into_supabase(important_items)
+
             today = datetime.utcnow().strftime("%Y-%m-%d")
             for lang in self.config.ai.languages:
                 summary = await self._generate_summary(important_items, today, len(all_items), language=lang)
-
-                summary_path = self.storage.save_daily_summary(today, summary, language=lang)
-                self.console.print(f"💾 Saved {lang.upper()} summary to: {summary_path}\n")
-
-                try:
-                    from pathlib import Path
-
-                    post_filename = f"{today}-summary-{lang}.md"
-                    posts_dir = Path("docs/_posts")
-                    posts_dir.mkdir(parents=True, exist_ok=True)
-
-                    dest_path = posts_dir / post_filename
-
-                    front_matter = (
-                        "---\n"
-                        "layout: default\n"
-                        f"title: \"Horizon Summary: {today} ({lang.upper()})\"\n"
-                        f"date: {today}\n"
-                        f"lang: {lang}\n"
-                        "---\n\n"
-                    )
-
-                    summary_content = summary
-                    first_line = summary_content.strip().split("\n")[0]
-                    if first_line.startswith("# "):
-                        parts = summary_content.split("\n", 1)
-                        if len(parts) > 1:
-                            summary_content = parts[1].strip()
-
-                    with open(dest_path, "w", encoding="utf-8") as f:
-                        f.write(front_matter + summary_content)
-
-                    self.console.print(f"📄 Copied {lang.upper()} summary to GitHub Pages: {dest_path}\n")
-                except Exception as e:
-                    self.console.print(f"[yellow]⚠️  Failed to copy {lang.upper()} summary to docs/: {e}[/yellow]\n")
 
                 if self.email_service and self.config.email and self.config.email.enabled:
                     self.console.print(f"📧 Sending {lang.upper()} email summary...")
@@ -423,3 +390,39 @@ class HorizonOrchestrator:
         summarizer = DailySummarizer()
 
         return await summarizer.generate_summary(items, date, total_fetched, language=language)
+
+    def _insert_into_supabase(self, items: List[ContentItem]) -> None:
+        """Insert AI categorized items into Supabase 'market_intelligence' table."""
+        import os
+        try:
+            from supabase import create_client, Client
+        except ImportError:
+            self.console.print("[yellow]⚠️ Supabase client not installed. Skipping database insert.[/yellow]\n")
+            return
+            
+        supabase_url = os.environ.get("SUPABASE_URL")
+        supabase_key = os.environ.get("SUPABASE_ANON_KEY")
+        
+        if not supabase_url or not supabase_key:
+            self.console.print("[yellow]⚠️ Supabase credentials not found in .env. Skipping database insert.[/yellow]\n")
+            return
+            
+        try:
+            supabase: Client = create_client(supabase_url, supabase_key)
+            
+            data_to_insert = []
+            for item in items:
+                record = {
+                    "title": item.title,
+                    "url": str(item.url),
+                    "source": item.source_type.value,
+                    "category": item.category,
+                    "summary": item.ai_summary,
+                }
+                data_to_insert.append(record)
+                
+            if data_to_insert:
+                supabase.table("market_intelligence").insert(data_to_insert).execute()
+                self.console.print(f"💾 Inserted {len(data_to_insert)} items into Supabase 'market_intelligence' table\n")
+        except Exception as e:
+            self.console.print(f"[bold red]❌ Failed to insert into Supabase: {e}[/bold red]\n")

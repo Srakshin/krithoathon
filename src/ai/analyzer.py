@@ -50,6 +50,7 @@ class ContentAnalyzer:
                         item.ai_score = 0.0
                         item.ai_reason = "Analysis failed"
                         item.ai_summary = item.title
+                        item.category = "Unknown"
                         analyzed_items.append(item)
                     progress.advance(task)
 
@@ -127,9 +128,11 @@ class ContentAnalyzer:
             item.ai_reason = "Analysis response parse failed"
             item.ai_summary = item.title
             item.ai_tags = []
+            item.category = "Unknown"
             return
 
-        item.ai_score = float(result.get("score", 0))
-        item.ai_reason = result.get("reason", "")
+        item.category = result.get("category", "Unknown")
+        item.ai_score = 10.0 if item.category in ['Competitor Updates', 'User Pain Points', 'Emerging Tech Trends'] else 0.0
+        item.ai_reason = f"Categorized as {item.category}"
         item.ai_summary = result.get("summary", item.title)
-        item.ai_tags = result.get("tags", [])
+        item.ai_tags = [item.category] if item.category != "Unknown" else []

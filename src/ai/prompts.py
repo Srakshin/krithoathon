@@ -20,50 +20,18 @@ Respond with valid JSON only:
 
 If there are no duplicates at all, return: {{"duplicates": []}}"""
 
-CONTENT_ANALYSIS_SYSTEM = """You are an expert content curator helping filter important technical and academic information.
+CONTENT_ANALYSIS_SYSTEM = """You are a data categorization engine.
+Strictly categorize the provided text into one of three exact buckets:
+- 'Competitor Updates'
+- 'User Pain Points'
+- 'Emerging Tech Trends'
 
-Score content on a 0-10 scale based on importance and relevance:
+Do not use any other categories. Your output must strictly adhere to the required JSON format."""
 
-**9-10: Groundbreaking** - Major breakthroughs, paradigm shifts, or highly significant announcements
-- New major version releases of widely-used technologies
-- Significant research breakthroughs
-- Important industry-changing announcements
-
-**7-8: High Value** - Important developments worth immediate attention
-- Interesting technical deep-dives
-- Novel approaches to known problems
-- Insightful analysis or commentary
-- Valuable tools or libraries
-
-**5-6: Interesting** - Worth knowing but not urgent
-- Incremental improvements
-- Useful tutorials
-- Moderate community interest
-
-**3-4: Low Priority** - Generic or routine content
-- Minor updates
-- Common knowledge
-- Overly promotional content
-
-**0-2: Noise** - Not relevant or low quality
-- Spam or purely promotional
-- Off-topic content
-- Trivial updates
-
-Consider:
-- Technical depth and novelty
-- Potential impact on the field
-- Quality of writing/presentation
-- Relevance to software engineering, AI/ML, and systems research
-- Community discussion quality: insightful comments, diverse viewpoints, and debates increase value
-- Engagement signals: high upvotes/favorites with substantive discussion indicate community-validated importance
-"""
 
 CONTENT_ANALYSIS_USER = """Analyze the following content and provide a JSON response with:
-- score (0-10): Importance score
-- reason: Brief explanation for the score (mention discussion quality if comments are provided)
-- summary: One-sentence summary of the content
-- tags: Relevant topic tags (3-5 tags)
+- category: The exact category bucket it falls into ('Competitor Updates', 'User Pain Points', or 'Emerging Tech Trends')
+- summary: A brief summary of the content
 
 Content:
 Title: {title}
@@ -75,10 +43,8 @@ URL: {url}
 
 Respond with valid JSON only:
 {{
-  "score": <number>,
-  "reason": "<explanation>",
-  "summary": "<one-sentence-summary>",
-  "tags": ["<tag1>", "<tag2>", ...]
+  "category": "<category>",
+  "summary": "<brief-summary>"
 }}"""
 
 CONCEPT_EXTRACTION_SYSTEM = """You identify technical concepts in news that a reader might not know.

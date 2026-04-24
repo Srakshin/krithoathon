@@ -36,10 +36,6 @@ class FileStore:
         )
         return self.config_path
 
-    def save_daily_summary(self, date: str, markdown: str, language: str = "en") -> Path:
-        path = self.summaries_dir / f"horizon-{date}-{language}.md"
-        path.write_text(markdown, encoding="utf-8")
-        return path
 
     def load_subscribers(self) -> list[str]:
         subscribers_path = self.data_dir / "subscribers.json"

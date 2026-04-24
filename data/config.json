@@ -8,33 +8,21 @@
     "temperature": 0.3,
     "max_tokens": 8192,
     "languages": [
-      "zh",
       "en"
     ]
   },
   "sources": {
     "github": [
       {
-        "type": "user_events",
-        "username": "karpathy",
+        "type": "repo_releases",
+        "owner": "openSIS",
+        "repo": "openSIS-Classic",
         "enabled": true
       },
       {
         "type": "repo_releases",
-        "owner": "vllm-project",
-        "repo": "vllm",
-        "enabled": true
-      },
-      {
-        "type": "repo_releases",
-        "owner": "sgl-project",
-        "repo": "sglang",
-        "enabled": true
-      },
-      {
-        "type": "repo_releases",
-        "owner": "triton-lang",
-        "repo": "triton",
+        "owner": "LibreSchool",
+        "repo": "LibreSchool",
         "enabled": true
       }
     ],
@@ -45,29 +33,29 @@
     },
     "rss": [
       {
-        "name": "Simon Willison",
-        "url": "https://simonwillison.net/atom/everything/",
+        "name": "EdTech News Feed 1",
+        "url": "https://example.com/feeds/edtech-news-1.xml",
         "enabled": true,
-        "category": "ai-tools"
+        "category": "school-management-software"
       },
       {
-        "name": "GitHub Trending - Daily",
-        "url": "https://mshibanami.github.io/GitHubTrendingRSS/daily/all.xml",
+        "name": "EdTech News Feed 2",
+        "url": "https://example.com/feeds/edtech-news-2.xml",
         "enabled": true,
-        "category": "github-trending"
+        "category": "teacher-tools"
       },
       {
-        "name": "LWN.net",
-        "url": "https://lwn.net/headlines/full_text?key=${LWN_KEY}",
+        "name": "EdTech News Feed 3",
+        "url": "https://example.com/feeds/edtech-news-3.xml",
         "enabled": true,
-        "category": "linux-kernel"
+        "category": "edtech-trends"
       }
     ],
     "reddit": {
       "enabled": true,
       "subreddits": [
         {
-          "subreddit": "MachineLearning",
+          "subreddit": "Teachers",
           "enabled": true,
           "sort": "hot",
           "time_filter": "day",
@@ -75,7 +63,7 @@
           "min_score": 60
         },
         {
-          "subreddit": "LocalLLaMA",
+          "subreddit": "edtech",
           "enabled": true,
           "sort": "hot",
           "time_filter": "day",
@@ -99,6 +87,10 @@
   },
   "filtering": {
     "ai_score_threshold": 7.0,
-    "time_window_hours": 24
+    "time_window_hours": 24,
+    "keywords": [
+      "school management software",
+      "teacher tools"
+    ]
   }
 }

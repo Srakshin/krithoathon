@@ -56,6 +56,8 @@ CONFIG_TEMPLATE = """
 Also create a .env file with:
 ANTHROPIC_API_KEY=your_api_key_here
 GITHUB_TOKEN=your_github_token_here
+SUPABASE_URL=your_supabase_url
+SUPABASE_ANON_KEY=your_supabase_anon_key
 """
 
 
