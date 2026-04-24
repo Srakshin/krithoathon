@@ -2,7 +2,6 @@
 name = "horizon"
 version = "0.1.0"
 description = "AI-driven information aggregation system for tracking academic and social trends"
-readme = "README.md"
 license = "MIT"
 requires-python = ">=3.11"
 dependencies = [
@@ -25,6 +24,7 @@ dependencies = [
 dev = [
     "pytest>=8.0.0",
     "pytest-cov>=5.0.0",
+    "pytest-asyncio>=0.24.0",
 ]
 
 [project.scripts]
@@ -43,3 +43,4 @@ packages = ["src"]
 minversion = "8.0"
 addopts = "-q"
 testpaths = ["tests"]
+asyncio_mode = "auto"

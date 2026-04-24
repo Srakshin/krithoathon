@@ -22,7 +22,7 @@ class StorageManager:
         if not self.config_path.exists():
             raise FileNotFoundError(
                 f"Configuration file not found: {self.config_path}\n"
-                f"Please create it based on the template in README.md"
+                "Please create it based on data/config.example.json"
             )
 
         with open(self.config_path, "r", encoding="utf-8") as f:

@@ -1,9 +1,7 @@
 """Interactive setup wizard for Horizon configuration."""
 
-import json
 import os
 import sys
-from pathlib import Path
 from typing import Dict, List, Optional
 
 from dotenv import load_dotenv
@@ -200,8 +198,6 @@ def build_config(
     reddit_subreddits = []
     reddit_users = []
     telegram_channels = []
-    hn_enabled = False
-
     for src in selected_sources:
         src_type = src.get("type", "")
         cfg = src.get("config", {})
@@ -242,8 +238,6 @@ def build_config(
                 channel=cfg.get("channel", ""),
                 fetch_limit=cfg.get("fetch_limit", 20),
             ))
-        elif src_type == "hackernews":
-            hn_enabled = True
 
     # Always include HackerNews as a universal source
     hn_config = HackerNewsConfig(

@@ -2,7 +2,7 @@
 
 Supports loading from the horizon-site API (preferred) or local file (fallback).
 API data is served in horizon-site's own format (Category/SourceType enums)
-and transformed internally to the preset format that match_domains() expects.
+and transformed internally to the preset format that ``match_sources()`` expects.
 """
 
 import json
@@ -53,7 +53,7 @@ def _transform_api_response(api_data: Dict) -> Dict:
     The API returns data in horizon-site's format (Category enum IDs like
     "AI_ML", SourceType enums like "REDDIT"). This function converts it
     to the preset format with kebab-case IDs and lowercase type strings
-    that match_domains() and collect_sources_from_domains() expect.
+    that ``match_sources()`` expects.
 
     Args:
         api_data: Raw API response with "categories" key.
@@ -132,74 +132,6 @@ def load_presets(
 
     with open(path, "r", encoding="utf-8") as f:
         return json.load(f)
-
-
-def match_domains(
-    user_input: str,
-    presets: Dict,
-    threshold: float = 0.1,
-) -> List[Tuple[Dict, float]]:
-    """Match user interest description against preset domains.
-
-    Performs case-insensitive keyword matching against domain keywords and
-    source tags. Returns matched domains sorted by relevance score.
-
-    Args:
-        user_input: Free-form user interest description (supports mixed languages).
-        presets: Loaded presets dictionary.
-        threshold: Minimum score (0–1) to include a domain.
-
-    Returns:
-        List of (domain_dict, score) tuples sorted by descending score.
-    """
-    tokens = set(user_input.lower().split())
-    input_lower = user_input.lower()
-
-    results = []
-    for domain in presets.get("domains", []):
-        score = 0.0
-        domain_keywords = [k.lower() for k in domain.get("keywords", [])]
-        total_keywords = len(domain_keywords) or 1
-
-        for kw in domain_keywords:
-            if kw in tokens or kw in input_lower:
-                score += 1.0
-
-        for source in domain.get("sources", []):
-            for tag in source.get("tags", []):
-                if tag.lower() in tokens or tag.lower() in input_lower:
-                    score += 0.3
-
-        normalized = min(score / total_keywords, 1.0)
-        if normalized >= threshold:
-            results.append((domain, normalized))
-
-    results.sort(key=lambda x: x[1], reverse=True)
-    return results
-
-
-def collect_sources_from_domains(
-    matched_domains: List[Tuple[Dict, float]],
-) -> List[Dict]:
-    """Flatten matched domains into a deduplicated list of source configs.
-
-    Args:
-        matched_domains: Output from match_domains().
-
-    Returns:
-        List of source dicts (each with type, description, config, origin="preset").
-    """
-    seen = set()
-    sources = []
-
-    for domain, _score in matched_domains:
-        for src in domain.get("sources", []):
-            key = _source_unique_key(src)
-            if key not in seen:
-                seen.add(key)
-                sources.append({**src, "origin": "preset"})
-
-    return sources
 
 
 def _tag_matches_input(tag: str, tokens: set, input_lower: str) -> bool:

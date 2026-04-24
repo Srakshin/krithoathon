@@ -100,21 +100,6 @@ TAG_ALIASES: dict[str, list[str]] = {
     "zig": [],
 }
 
-# Reverse lookup: alias (lowercased) -> canonical tag
-_REVERSE_MAP: dict[str, str] = {}
-for _main, _aliases in TAG_ALIASES.items():
-    _REVERSE_MAP[_main.lower()] = _main
-    for _alias in _aliases:
-        _REVERSE_MAP[_alias.lower()] = _main
-
-
 def get_tag_aliases(tag: str) -> list[str]:
     """Return all aliases for a canonical tag (empty list if unknown)."""
     return TAG_ALIASES.get(tag.lower(), [])
-
-
-def resolve_tag_alias(input_str: str) -> str:
-    """Resolve a tag or alias to its canonical form (lowercased)."""
-    normalized = input_str.lower().strip()
-    resolved = _REVERSE_MAP.get(normalized)
-    return resolved if resolved else normalized

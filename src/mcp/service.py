@@ -3,6 +3,7 @@
 from __future__ import annotations
 
 import os
+from inspect import isawaitable
 from dataclasses import dataclass
 from datetime import datetime, timedelta, timezone
 from pathlib import Path
@@ -325,7 +326,8 @@ class HorizonPipelineService:
         if topic_dedup and important_items:
             storage = make_storage(ctx.runtime, ctx.config_path)
             orchestrator = make_orchestrator(ctx.runtime, ctx.config, storage)
-            important_items = await orchestrator.merge_topic_duplicates(important_items)
+            deduped_items = orchestrator.merge_topic_duplicates(important_items)
+            important_items = await deduped_items if isawaitable(deduped_items) else deduped_items
 
         self.run_store.save_items(run_id, "filtered", items_to_dicts(important_items))
         meta = self.run_store.update_meta(
