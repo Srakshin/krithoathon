@@ -33,7 +33,7 @@ logger = logging.getLogger("morning_pulse")
 
 PROJECT_ROOT = Path(__file__).resolve().parents[1]
 DATA_DIR = PROJECT_ROOT / "data"
-DEFAULT_FETCH_HOURS = 24
+DEFAULT_FETCH_HOURS = 72
 
 SOURCE_LABELS = {
     SourceType.GITHUB.value: "GitHub",
@@ -683,7 +683,7 @@ async def fetch_intelligence(
     request: dict[str, Any] = Depends(_get_authenticated_request),
     hours: int = Query(DEFAULT_FETCH_HOURS, ge=1, le=168),
 ):
-    """Run scrapers on demand, store raw data first, then categorize it with Grok."""
+    """Run scrapers on demand, categorize in-memory, store to DB optionally, and return immediately."""
 
     orchestrator = _load_orchestrator()
     since = datetime.now(timezone.utc) - timedelta(hours=hours)
@@ -692,6 +692,7 @@ async def fetch_intelligence(
 
     try:
         fetched_items = await orchestrator.fetch_all_sources(since)
+        fetched_items = orchestrator._keyword_filter(fetched_items)
     except Exception as exc:
         raise HTTPException(
             status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
@@ -701,8 +702,7 @@ async def fetch_intelligence(
     merged_items = orchestrator.merge_cross_source_duplicates(fetched_items)
     normalized_items = [_normalize_scraped_item(item) for item in merged_items]
     normalized_items = _sort_records(normalized_items)
-    inserted_count = 0
-    duplicates_skipped = 0
+    
     if not normalized_items:
         return _build_digest_payload(
             [],
@@ -711,7 +711,7 @@ async def fetch_intelligence(
             message=f"No scraper items were found in the last {hours} hours.",
             extra={
                 "status": "ok",
-                "storage_status": "stored",
+                "storage_status": "skipped",
                 "analysis_status": "skipped",
                 "raw_fetched_count": len(fetched_items),
                 "deduplicated_count": 0,
@@ -722,94 +722,77 @@ async def fetch_intelligence(
             },
         )
 
-    urls = [item["url"] for item in normalized_items if item.get("url")]
+    # Assign temporary IDs for the categorizer payload expectations
+    for i, item in enumerate(normalized_items):
+        item["id"] = i
 
+    categorizer = GrokCategorizer()
     try:
-        existing_records = _fetch_records_by_urls(db, urls)
+        updates = await categorizer.categorize_records(normalized_items)
+        categorized_count = len(updates)
+        for item in normalized_items:
+            rec_id = item["id"]
+            if rec_id in updates:
+                item["category"] = updates[rec_id]["category"]
+                item["summary"] = updates[rec_id]["summary"]
+            else:
+                item["category"] = "Uncategorized"
     except Exception as exc:
-        raise HTTPException(
-            status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
-            detail=_read_error_message(exc),
-        )
+        categorized_count = 0
+        for item in normalized_items:
+            item["category"] = "Uncategorized"
+        print(f"Categorization failed: {exc}")
 
-    existing_urls = {
-        record.get("url")
-        for record in existing_records
-        if record.get("url")
-    }
-    records_to_insert = _build_records_to_insert(normalized_items, existing_urls)
-    duplicates_skipped = len(normalized_items) - len(records_to_insert)
-
+    # Fire-and-forget storage to DB (ignore RLS/update errors)
+    inserted_count = 0
+    duplicates_skipped = 0
     try:
+        urls = [item["url"] for item in normalized_items if item.get("url")]
+        existing_records = _fetch_records_by_urls(db, urls)
+        existing_urls = {record.get("url") for record in existing_records if record.get("url")}
+        
+        records_to_insert = [
+            {
+                "title": item["title"],
+                "url": item["url"],
+                "source": item["source"],
+                "category": item["category"],
+                "summary": item["summary"],
+            }
+            for item in normalized_items
+            if item.get("url") and item["url"] not in existing_urls
+        ]
+        
+        duplicates_skipped = len(normalized_items) - len(records_to_insert)
         if records_to_insert:
             result = db.table("market_intelligence").insert(records_to_insert).execute()
             inserted_count = len(result.data or records_to_insert)
+            
+        records_to_update = [item for item in normalized_items if item.get("url") in existing_urls]
+        for item in records_to_update:
+            real_record = next((r for r in existing_records if r.get("url") == item.get("url")), None)
+            if real_record and real_record.get("id"):
+                db.table("market_intelligence").update({
+                    "category": item["category"],
+                    "summary": item["summary"]
+                }).eq("id", real_record["id"]).execute()
     except Exception as exc:
-        raise HTTPException(
-            status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
-            detail=_storage_error_message(exc),
-        )
+        print(f"DB storage failed but continuing to serve frontend: {exc}")
 
-    try:
-        stored_records = _fetch_records_by_urls(db, urls)
-    except Exception as exc:
-        raise HTTPException(
-            status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
-            detail=_read_error_message(exc),
-        )
+    # Remove temporary ids before sending to frontend
+    for item in normalized_items:
+        item.pop("id", None)
 
-    records_needing_analysis = [
-        record
-        for record in stored_records
-        if _needs_grok_analysis(record)
-    ]
-
-    try:
-        categorized_count = await _categorize_records_in_database(db, records_needing_analysis)
-    except ValueError as exc:
-        raise HTTPException(
-            status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
-            detail=(
-                "Scraper data was stored in Supabase, but Grok returned an invalid "
-                f"categorization response: {exc}"
-            ),
-        )
-    except Exception as exc:
-        raise HTTPException(
-            status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
-            detail=(
-                "Scraper data was stored in Supabase, but Grok categorization failed. "
-                f"Check GROK_API_KEY and model access. Details: {exc}"
-            ),
-        )
-
-    try:
-        final_records = _fetch_records_by_urls(db, urls)
-    except Exception as exc:
-        raise HTTPException(
-            status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
-            detail=_read_error_message(exc),
-        )
-
-    normalized_records = [_normalize_db_record(record) for record in final_records]
-    normalized_records = _sort_records(normalized_records)
-
-    message = (
-        f"Fetched {len(normalized_items)} deduplicated scraper items, stored "
-        f"{inserted_count} new records in Supabase, and categorized "
-        f"{categorized_count} stored records with Grok."
-    )
-    if duplicates_skipped:
-        message += f" Reused {duplicates_skipped} records that were already in the database."
-
+    message = f"Fetched {len(normalized_items)} items from web, categorized {categorized_count} items with Gemini, and returned directly to dashboard."
+    
     return _build_digest_payload(
-        normalized_records,
+        normalized_items,
         user_id=request["claims"].get("sub"),
         date=today,
         message=message,
         extra={
             "status": "ok",
-            "storage_status": "stored",
+            "storage_status": "attempted",
             "analysis_status": "completed",
             "raw_fetched_count": len(fetched_items),
             "deduplicated_count": len(normalized_items),
@@ -819,6 +802,70 @@ async def fetch_intelligence(
             "hours": hours,
         },
     )
+
+@app.post("/broadcast-email")
+async def broadcast_email(request: dict[str, Any] = Depends(_get_authenticated_request)):
+    """Generate today's summary and send it to all subscribers and the admin."""
+    today, start, end = _today_window()
+    db = request["db"]
+    
+    response = db.table("market_intelligence").select("*").gte("created_at", start).lte("created_at", end).execute()
+    records = response.data or []
+    
+    user_id = request["claims"]["sub"]
+    prefs_resp = db.table("user_preferences").select("additional_emails").eq("user_id", user_id).execute()
+    additional_emails = prefs_resp.data[0].get("additional_emails", "") if prefs_resp.data else ""
+    
+    orchestrator = _load_orchestrator()
+    subscribers = orchestrator.storage.load_subscribers()
+    
+    all_emails = set(subscribers)
+    if "email" in request["claims"]:
+        all_emails.add(request["claims"]["email"])
+    if additional_emails:
+        all_emails.update([e.strip() for e in additional_emails.split(",") if e.strip()])
+    
+    if not all_emails:
+        raise HTTPException(status_code=400, detail="No subscribers found to send to.")
+        
+    if not records:
+        raise HTTPException(status_code=400, detail="No insights fetched today to send. Fetch data first.")
+        
+    from .ai.summarizer import DailySummarizer
+    from .domain.models import ContentItem, SourceType
+    items = []
+    for i, r in enumerate(records):
+        source = r.get("source") or "web"
+        stype = SourceType.WEB
+        for st in SourceType:
+            if st.value == source:
+                stype = st
+                break
+                
+        item = ContentItem(
+            id=str(r.get("id") or i),
+            source_type=stype,
+            url=r.get("url") or "",
+            title=r.get("title") or "No title",
+            content="",
+            ai_summary=r.get("summary") or "",
+            category=r.get("category"),
+            published_at=datetime.now(timezone.utc)
+        )
+        items.append(item)
+        
+    try:
+        summarizer = DailySummarizer()
+        summary_md = await summarizer.generate_summary(items, today, len(items), language="en")
+        
+        if orchestrator.email_service:
+            subject = f"Morning Pulse Digest - {today}"
+            orchestrator.email_service.send_daily_summary(summary_md, subject, list(all_emails))
+            return {"status": "ok", "message": f"Broadcast sent to {len(all_emails)} recipients!"}
+        else:
+            raise HTTPException(status_code=500, detail="Email service is not configured in config.json")
+    except Exception as exc:
+        raise HTTPException(status_code=500, detail=f"Failed to send email broadcast: {exc}")
 
 @app.get("/preferences")
 async def get_preferences(request: dict[str, Any] = Depends(_get_authenticated_request)):

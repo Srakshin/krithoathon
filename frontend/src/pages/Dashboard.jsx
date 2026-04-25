@@ -17,7 +17,8 @@ import {
   Search,
   TrendingUp,
   MessageSquare,
-  Target
+  Target,
+  Mail
 } from 'lucide-react';
 import { format } from 'date-fns';
 import { BarChart, Bar, XAxis, YAxis, Tooltip, ResponsiveContainer, Cell } from 'recharts';
@@ -55,6 +56,7 @@ export default function Dashboard() {
   const [notice, setNotice] = useState(null);
   const [isCustomizationOpen, setIsCustomizationOpen] = useState(false);
   const [targetEmailOverride, setTargetEmailOverride] = useState(null);
+  const [credibilityFilter, setCredibilityFilter] = useState('all');
   const targetEmail = targetEmailOverride ?? user?.email ?? '';
 
   const fetchDigest = async () => {
@@ -127,6 +129,41 @@ export default function Dashboard() {
       });
     } finally {
       setLoadingSaved(false);
+    }
+  };
+
+  const broadcastEmail = async () => {
+    if (!session?.access_token) {
+      setErrorType('auth');
+      setError('Your session is missing. Please sign out and sign in again.');
+      return;
+    }
+
+    setNotice({ type: 'success', text: 'Sending broadcast email...' });
+
+    try {
+      const response = await fetch(`${BACKEND_URL}/broadcast-email`, {
+        method: 'POST',
+        headers: {
+          Authorization: `Bearer ${session.access_token}`,
+        },
+      });
+
+      const result = await response.json();
+
+      if (!response.ok) {
+        throw new Error(result.detail || 'Failed to send broadcast');
+      }
+
+      setNotice({
+        type: 'success',
+        text: result.message || 'Broadcast sent successfully!',
+      });
+    } catch (err) {
+      setNotice({
+        type: 'warning',
+        text: err.message,
+      });
     }
   };
 
@@ -247,6 +284,39 @@ export default function Dashboard() {
 
   const sourceCounts = Object.entries(data?.source_counts || {});
 
+  const getCredibilityBadge = (item) => {
+    const score = item.confidence_score;
+    const label = item.credibility_label;
+    if (score === undefined || score === null) return null;
+
+    let colorClass, emoji;
+    if (score >= 80) {
+      colorClass = 'bg-emerald-500/15 text-emerald-300 border-emerald-500/20';
+      emoji = '✅';
+    } else if (score >= 55) {
+      colorClass = 'bg-amber-500/15 text-amber-300 border-amber-500/20';
+      emoji = '🔶';
+    } else if (score >= 30) {
+      colorClass = 'bg-orange-500/15 text-orange-300 border-orange-500/20';
+      emoji = '⚠️';
+    } else {
+      colorClass = 'bg-red-500/15 text-red-300 border-red-500/20';
+      emoji = '🚨';
+    }
+
+    const shortLabel = label?.replace(' Credibility', '') ?? 'Unknown';
+    return (
+      <div
+        className={`inline-flex items-center gap-1 px-2 py-0.5 rounded-full border text-xs font-medium ${colorClass}`}
+        title={item.credibility_reason || label}
+      >
+        <span>{emoji}</span>
+        <span>{shortLabel}</span>
+        <span className="opacity-60">· {score}</span>
+      </div>
+    );
+  };
+
   const getIconForCategory = (categoryName) => {
     if (categoryName.includes('Competitor')) return <Zap className="w-5 h-5 text-amber-400" />;
     if (categoryName.includes('Pain')) return <ShieldAlert className="w-5 h-5 text-rose-400" />;
@@ -329,52 +399,71 @@ export default function Dashboard() {
     );
   };
 
-  const renderCards = (items) => (
-    <div className="grid md:grid-cols-2 gap-4">
-      {items.map((item, index) => {
-        const timestamp = formatTimestamp(item.published_at || item.created_at);
+  const renderCards = (items) => {
+    const filtered = credibilityFilter === 'high'
+      ? items.filter(i => (i.confidence_score ?? 50) >= 80)
+      : credibilityFilter === 'low'
+      ? items.filter(i => (i.confidence_score ?? 50) < 55)
+      : items;
 
-        return (
-          <div
-            key={`${item.url || item.title}-${index}`}
-            className="group p-5 rounded-xl bg-[#141415] border border-white/5 hover:border-white/10 transition-all flex flex-col h-full relative overflow-hidden"
-          >
-            <div className="absolute top-0 left-0 w-1 h-full bg-gradient-to-b from-white/20 to-transparent opacity-0 group-hover:opacity-100 transition-opacity" />
+    return (
+      <div className="grid md:grid-cols-2 gap-4">
+        {filtered.map((item, index) => {
+          const timestamp = formatTimestamp(item.published_at || item.created_at);
 
-            <div className="flex items-start justify-between gap-3 mb-4">
-              <div>
-                <div className="text-xs font-medium text-zinc-500 uppercase tracking-[0.16em]">
-                  {sourceBadge(item.source_label)}
+          return (
+            <div
+              key={`${item.url || item.title}-${index}`}
+              className="group p-5 rounded-xl bg-[#141415] border border-white/5 hover:border-white/10 transition-all flex flex-col h-full relative overflow-hidden"
+            >
+              <div className="absolute top-0 left-0 w-1 h-full bg-gradient-to-b from-white/20 to-transparent opacity-0 group-hover:opacity-100 transition-opacity" />
+
+              <div className="flex items-start justify-between gap-3 mb-3">
+                <div>
+                  <div className="text-xs font-medium text-zinc-500 uppercase tracking-[0.16em]">
+                    {sourceBadge(item.source_label)}
+                  </div>
+                  {item.sub_source && (
+                    <div className="text-xs text-zinc-600 mt-1">{item.sub_source}</div>
+                  )}
                 </div>
-                {item.sub_source && (
-                  <div className="text-xs text-zinc-600 mt-1">{item.sub_source}</div>
-                )}
+                <div className="flex items-center gap-2 text-zinc-600 flex-wrap justify-end">
+                  {getCredibilityBadge(item)}
+                  {timestamp && <span className="text-xs">{timestamp}</span>}
+                  {item.url && (
+                    <a
+                      href={item.url}
+                      target="_blank"
+                      rel="noreferrer"
+                      className="hover:text-white transition-colors"
+                      title="Open source"
+                    >
+                      <ExternalLink className="w-4 h-4" />
+                    </a>
+                  )}
+                </div>
               </div>
-              <div className="flex items-center gap-3 text-zinc-600">
-                {timestamp && <span className="text-xs">{timestamp}</span>}
-                {item.url && (
-                  <a
-                    href={item.url}
-                    target="_blank"
-                    rel="noreferrer"
-                    className="hover:text-white transition-colors"
-                    title="Open source"
-                  >
-                    <ExternalLink className="w-4 h-4" />
-                  </a>
-                )}
-              </div>
-            </div>
 
-            <h4 className="font-medium text-zinc-200 mb-3 leading-snug">{item.title}</h4>
-            <p className="text-sm text-zinc-400 leading-relaxed flex-grow">
-              {item.summary || 'This record did not include a summary.'}
-            </p>
+              <h4 className="font-medium text-zinc-200 mb-3 leading-snug">{item.title}</h4>
+              <p className="text-sm text-zinc-400 leading-relaxed flex-grow">
+                {item.summary || 'This record did not include a summary.'}
+              </p>
+              {item.credibility_reason && (
+                <p className="text-xs text-zinc-600 mt-3 italic border-t border-white/5 pt-2">
+                  {item.credibility_reason}
+                </p>
+              )}
+            </div>
+          );
+        })}
+        {filtered.length === 0 && (
+          <div className="col-span-2 rounded-xl border border-white/5 bg-[#141415] px-5 py-4 text-sm text-zinc-500">
+            No items match the current credibility filter.
           </div>
-        );
-      })}
-    </div>
-  );
+        )}
+      </div>
+    );
+  };
 
   const renderEmptyState = () => {
     const hasLoadedResult = Boolean(data);
@@ -508,6 +597,23 @@ export default function Dashboard() {
         </div>
 
         <div className="grid gap-8">
+          {/* Credibility Filter Bar */}
+          <div className="flex items-center gap-2">
+            <span className="text-xs text-zinc-500 font-medium uppercase tracking-wider">Credibility:</span>
+            {['all', 'high', 'low'].map((f) => (
+              <button
+                key={f}
+                onClick={() => setCredibilityFilter(f)}
+                className={`px-3 py-1 rounded-full text-xs font-medium border transition-all ${
+                  credibilityFilter === f
+                    ? 'bg-white text-black border-white'
+                    : 'bg-white/5 text-zinc-400 border-white/10 hover:bg-white/10'
+                }`}
+              >
+                {f === 'all' ? '🌐 All' : f === 'high' ? '✅ High Only' : '⚠️ Low Only'}
+              </button>
+            ))}
+          </div>
           {DISPLAY_CATEGORIES.map((categoryName, index) => {
             const items = data.categories?.[categoryName] || [];
 
@@ -611,6 +717,13 @@ export default function Dashboard() {
               >
                 <RefreshCw className={`w-4 h-4 ${loadingSaved ? 'animate-spin' : ''}`} />
                 Load Saved
+              </button>
+              <button
+                onClick={broadcastEmail}
+                className="flex items-center justify-center gap-2 px-5 py-2 h-10 bg-indigo-500 text-white text-sm font-medium rounded-lg hover:bg-indigo-600 transition-colors disabled:opacity-50"
+              >
+                <Mail className="w-4 h-4" />
+                Broadcast
               </button>
               <button
                 onClick={() => setIsCustomizationOpen(true)}

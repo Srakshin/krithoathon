@@ -14,34 +14,34 @@
     "github": [
       {
         "type": "repo_releases",
-        "owner": "openSIS",
-        "repo": "openSIS-Classic",
+        "owner": "instructure",
+        "repo": "canvas-lms",
         "enabled": true
       },
       {
         "type": "repo_releases",
-        "owner": "LibreSchool",
-        "repo": "LibreSchool",
+        "owner": "bigbluebutton",
+        "repo": "bigbluebutton",
         "enabled": true
       }
     ],
     "hackernews": {
       "enabled": true,
-      "fetch_top_stories": 10,
-      "min_score": 200
+      "fetch_top_stories": 30,
+      "min_score": 50
     },
     "rss": [
       {
-        "name": "EdSurge",
-        "url": "https://feeds.feedburner.com/EdSurge",
+        "name": "NYT Education",
+        "url": "https://rss.nytimes.com/services/xml/rss/nyt/Education.xml",
         "enabled": true,
-        "category": "edtech-trends"
+        "category": "general"
       },
       {
-        "name": "TechCrunch Education",
-        "url": "https://techcrunch.com/category/education/feed/",
+        "name": "Edutopia",
+        "url": "https://www.edutopia.org/feed.xml",
         "enabled": true,
-        "category": "competitors"
+        "category": "teacher tools"
       }
     ],
     "reddit": {
@@ -52,20 +52,20 @@
           "enabled": true,
           "sort": "hot",
           "time_filter": "day",
-          "fetch_limit": 15,
-          "min_score": 60
+          "fetch_limit": 25,
+          "min_score": 10
         },
         {
           "subreddit": "edtech",
           "enabled": true,
           "sort": "hot",
           "time_filter": "day",
-          "fetch_limit": 15,
-          "min_score": 60
+          "fetch_limit": 25,
+          "min_score": 10
         }
       ],
       "users": [],
-      "fetch_comments": 10
+      "fetch_comments": 0
     },
     "telegram": {
       "enabled": true,
@@ -76,33 +76,23 @@
           "fetch_limit": 20
         },
         {
-          "channel": "edtechreview",
-          "enabled": true,
-          "fetch_limit": 20
-        },
-        {
-          "channel": "educationtechnologynews",
-          "enabled": true,
-          "fetch_limit": 20
-        },
-        {
           "channel": "elearningindustry",
           "enabled": true,
           "fetch_limit": 20
         },
         {
           "channel": "futurepedia_io",
-          "enabled": true,
+          "enabled": false,
           "fetch_limit": 20
         },
         {
           "channel": "aipost",
-          "enabled": true,
+          "enabled": false,
           "fetch_limit": 20
         },
         {
           "channel": "machinelearningresearchnews",
-          "enabled": true,
+          "enabled": false,
           "fetch_limit": 20
         },
         {
@@ -112,7 +102,7 @@
         },
         {
           "channel": "openai",
-          "enabled": true,
+          "enabled": false,
           "fetch_limit": 20
         }
       ]
@@ -120,10 +110,37 @@
   },
   "filtering": {
     "ai_score_threshold": 7.0,
-    "time_window_hours": 24,
+    "time_window_hours": 72,
     "keywords": [
-      "school management software",
-      "teacher tools"
-    ]
+      "education",
+      "school",
+      "college",
+      "university",
+      "student",
+      "teacher",
+      "learning",
+      "course",
+      "class",
+      "EdTech",
+      "LMS",
+      "curriculum",
+      "teaching",
+      "classroom",
+      "academic",
+      "pedagogy"
+    ],
+    "minimum_topic_score": 2.0
+  },
+  "email": {
+    "enabled": true,
+    "smtp_server": "smtp.gmail.com",
+    "smtp_port": 465,
+    "email_address": "padidamanveshreddy3@gmail.com",
+    "password_env": "EMAIL_PASSWORD",
+    "sender_name": "Morning Pulse",
+    "imap_server": "imap.gmail.com",
+    "imap_port": 993,
+    "subscribe_keyword": "Subscribe",
+    "unsubscribe_keyword": "Unsubscribe"
   }
 }

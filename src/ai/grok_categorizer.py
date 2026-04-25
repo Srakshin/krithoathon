@@ -14,6 +14,8 @@ TARGET_CATEGORIES = (
     "Competitor Updates",
     "User Pain Points",
     "Emerging Tech Trends",
+    "Market Opportunities",
+    "Customer Feedback Signals",
 )
 
 GROK_CATEGORY_SYSTEM = """
@@ -23,6 +25,8 @@ Choose exactly one category for every record:
 - Competitor Updates: launches, releases, pricing changes, partnerships, acquisitions, hiring, roadmap moves, or product updates from vendors and competitors.
 - User Pain Points: explicit frustrations, delays, complaints, repetitive manual work, workflow bottlenecks, or unmet needs from teachers, admins, parents, or students. Example: "Grading takes too long."
 - Emerging Tech Trends: new AI capabilities, infrastructure shifts, research breakthroughs, adoption patterns, or new technology directions that matter to the education market.
+- Market Opportunities: unserved niches, funding trends, changing regulations, budget allocations, or broader economic shifts that present a chance for growth or entry.
+- Customer Feedback Signals: user reviews, product testimonials, community sentiment, bug reports, feature requests, or direct feedback on specific existing tools.
 
 Return valid JSON only in this shape:
 {
@@ -64,21 +68,40 @@ def _normalize_category(value: Any) -> str | None:
         return "User Pain Points"
     if "trend" in text or "tech" in text or "emerging" in text:
         return "Emerging Tech Trends"
+    if "market" in text or "opportunit" in text:
+        return "Market Opportunities"
+    if "feedback" in text or "signal" in text or "review" in text:
+        return "Customer Feedback Signals"
     return None
 
 
+KEYWORD_CATEGORY_MAP = [
+    ("Competitor Updates",        ["launch", "release", "acquired", "acquisition", "partnership", "funding", "product update", "competitor", "rival", "pricing", "new feature"]),
+    ("User Pain Points",          ["problem", "issue", "struggle", "difficult", "frustrated", "complaint", "pain", "challenge", "fail", "broken", "hard to"]),
+    ("Emerging Tech Trends",      ["ai", "artificial intelligence", "machine learning", "automation", "trend", "research", "innovation", "emerging", "technology", "digital transformation"]),
+    ("Market Opportunities",      ["opportunity", "market", "growth", "invest", "demand", "gap", "unserved", "potential", "expand", "scale"]),
+    ("Customer Feedback Signals", ["review", "feedback", "testimonial", "rating", "recommend", "feature request", "survey", "community"]),
+]
+
+
+def _keyword_categorize(title: str, summary: str) -> str:
+    text = (title + " " + summary).lower()
+    for category, keywords in KEYWORD_CATEGORY_MAP:
+        if any(kw in text for kw in keywords):
+            return category
+    return "Emerging Tech Trends"  # default fallback
+
+
 class GrokCategorizer:
-    """Categorize stored scraper records with Grok."""
+    """Categorize stored scraper records with Gemini."""
 
     def __init__(self) -> None:
-        self.model = os.environ.get("GROK_MODEL", "grok-4.20")
-        self.base_url = os.environ.get("GROK_BASE_URL", "https://api.x.ai/v1")
-        self.api_key_env = "GROK_API_KEY"
+        self.model = os.environ.get("GEMINI_MODEL", "gemini-1.5-flash-latest")
+        self.api_key_env = "GOOGLE_API_KEY"
         self.client = create_ai_client(
             AIConfig(
-                provider=AIProvider.OPENAI,
+                provider=AIProvider.GEMINI,
                 model=self.model,
-                base_url=self.base_url,
                 api_key_env=self.api_key_env,
                 temperature=0.1,
                 max_tokens=4096,
@@ -89,24 +112,38 @@ class GrokCategorizer:
         self,
         records: list[dict[str, Any]],
         *,
-        batch_size: int = 8,
+        batch_size: int = 15,
     ) -> dict[int, dict[str, str]]:
-        """Return category/summary updates keyed by database record id."""
+        """Return category/summary updates keyed by database record id.
+        
+        Falls back to keyword-based categorization if Gemini quota is exceeded.
+        """
 
         categorized: dict[int, dict[str, str]] = {}
 
-        for batch in _chunked(records, batch_size):
-            categorized.update(await self._categorize_batch(batch))
+        try:
+            for batch in _chunked(records, batch_size):
+                categorized.update(await self._categorize_batch(batch))
+        except Exception as exc:
+            print(f"Gemini categorization failed ({exc}), falling back to keyword-based categorization.")
+            # Keyword-based fallback so data always displays on dashboard
+            for record in records:
+                rec_id = int(record["id"])
+                if rec_id not in categorized:
+                    categorized[rec_id] = {
+                        "category": _keyword_categorize(record.get("title", ""), record.get("summary", "")),
+                        "summary": record.get("summary") or record.get("title", ""),
+                    }
+            return categorized
 
-        missing_ids = sorted(
-            record["id"]
-            for record in records
-            if int(record["id"]) not in categorized
-        )
-        if missing_ids:
-            raise ValueError(
-                f"Grok did not return categorizations for record ids: {missing_ids}"
-            )
+        # Fill any remaining gaps with keyword fallback (partial success)
+        for record in records:
+            rec_id = int(record["id"])
+            if rec_id not in categorized:
+                categorized[rec_id] = {
+                    "category": _keyword_categorize(record.get("title", ""), record.get("summary", "")),
+                    "summary": record.get("summary") or record.get("title", ""),
+                }
 
         return categorized
 

@@ -7,6 +7,7 @@ export default defineConfig(({ mode }) => {
 
   return {
     envDir: '..',
+    server: { host: '127.0.0.1' },
     plugins: [react(), tailwindcss()],
     define: {
       'import.meta.env.VITE_BACKEND_URL': JSON.stringify(

@@ -1,12 +1,16 @@
 """Main orchestrator coordinating the entire workflow."""
 
 import asyncio
+import sys
 from collections import defaultdict
 from datetime import datetime, timedelta, timezone
 from typing import List, Dict
 from urllib.parse import urlparse
 import httpx
 from rich.console import Console
+
+if sys.stdout.encoding.lower() != 'utf-8':
+    sys.stdout.reconfigure(encoding='utf-8')
 
 from .domain.models import Config, ContentItem
 from .filtering import TopicalContentFilter
