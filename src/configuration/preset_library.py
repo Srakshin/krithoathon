@@ -217,6 +217,8 @@ def _source_unique_key(source: Dict) -> str:
 
     if src_type == "rss":
         return f"rss:{cfg.get('url', '')}"
+    elif src_type == "web":
+        return f"web:{cfg.get('url', '')}"
     elif src_type == "reddit_subreddit":
         return f"reddit:{cfg.get('subreddit', '')}"
     elif src_type == "reddit_user":

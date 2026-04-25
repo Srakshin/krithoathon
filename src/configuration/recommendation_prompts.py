@@ -2,7 +2,8 @@
 
 RECOMMEND_SYSTEM = """\
 You are a technical information source recommendation expert. You help users \
-discover RSS feeds, GitHub repositories, Reddit communities, and Telegram channels \
+discover RSS feeds, GitHub repositories, Reddit communities, Telegram channels, and \
+relevant public web pages or search/listing pages \
 that match their interests.
 
 You should recommend sources that are:
@@ -25,12 +26,13 @@ Return a JSON object with this structure:
 {{
   "sources": [
     {{
-      "type": "rss" | "reddit_subreddit" | "github_user" | "github_repo" | "telegram",
+      "type": "rss" | "web" | "reddit_subreddit" | "github_user" | "github_repo" | "telegram",
       "description": "Brief English description",
       "description_zh": "Brief description in Simplified Chinese",
       "reason": "Why this source is relevant",
       "config": {{
         // For rss: {{"name": "...", "url": "...", "category": "..."}}
+        // For web: {{"name": "...", "url": "...", "category": "...", "page_kind": "listing" | "page" | "feed", "strategy": "auto"}}
         // For reddit_subreddit: {{"subreddit": "...", "sort": "hot", "fetch_limit": 15, "min_score": 50}}
         // For github_user: {{"username": "..."}}
         // For github_repo: {{"owner": "...", "repo": "..."}}

@@ -21,7 +21,7 @@ class FileStore:
         if not self.config_path.exists():
             raise FileNotFoundError(
                 f"Configuration file not found: {self.config_path}\n"
-                "Please create it based on data/config.example.json"
+                "Please restore data/config.json or create one that matches the Horizon config schema."
             )
 
         return Config.model_validate(json.loads(self.config_path.read_text(encoding="utf-8")))
@@ -64,19 +64,8 @@ class FileStore:
         subscribers_path.write_text(json.dumps(subscribers, indent=2), encoding="utf-8")
 
     def save_summary(self, summary_md: str, date: str, language: str = "en") -> None:
-        """Save summary to data_dir/summaries and potentially docs/_posts."""
+        """Save a generated summary to data/summaries."""
         filename = f"{date}-summary-{language}.md"
-        
-        # Save to local data/summaries/
+
         local_path = self.summaries_dir / filename
         local_path.write_text(summary_md, encoding="utf-8")
-        
-        # Attempt to publish to docs/_posts if it exists
-        # Navigate up to the project root assuming data/ is inside it or next to it
-        # Actually self.data_dir is usually at project root.
-        docs_posts_dir = self.data_dir.parent / "docs" / "_posts"
-        if docs_posts_dir.exists() and docs_posts_dir.is_dir():
-            post_filename = f"{date}-morning-pulse-{language}.md"
-            docs_path = docs_posts_dir / post_filename
-            # Prepend Jekyll/Hugo frontmatter if we wanted, but the prompt just says save a copy
-            docs_path.write_text(summary_md, encoding="utf-8")

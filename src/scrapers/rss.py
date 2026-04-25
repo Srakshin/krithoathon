@@ -1,5 +1,6 @@
 """RSS feed scraper implementation."""
 
+import asyncio
 import calendar
 import logging
 import os
@@ -11,7 +12,8 @@ import httpx
 import feedparser
 
 from .base_scraper import BaseScraper
-from ..domain.models import ContentItem, SourceType, RSSSourceConfig
+from .web import WebScraper
+from ..domain.models import ContentItem, FetchStrategy, RSSSourceConfig, SourceType, WebSourceConfig
 
 logger = logging.getLogger(__name__)
 
@@ -27,6 +29,7 @@ class RSSScraper(BaseScraper):
             http_client: Shared async HTTP client
         """
         super().__init__({"sources": sources}, http_client)
+        self.browser_fallback = WebScraper([], http_client)
 
     async def fetch(self, since: datetime) -> List[ContentItem]:
         """Fetch RSS feed items.
@@ -44,7 +47,10 @@ class RSSScraper(BaseScraper):
             if not source.enabled:
                 continue
 
-            feed_items = await self._fetch_feed(source, since)
+            if source.strategy == FetchStrategy.BROWSER:
+                feed_items = await self._fetch_feed_via_browser(source, since)
+            else:
+                feed_items = await self._fetch_feed(source, since)
             items.extend(feed_items)
 
         return items
@@ -72,8 +78,7 @@ class RSSScraper(BaseScraper):
                 str(source.url),
             )
 
-            response = await self.client.get(feed_url, follow_redirects=True)
-            response.raise_for_status()
+            response = await self._get_with_retry(source, feed_url)
 
             feed = feedparser.parse(response.text)
 
@@ -103,12 +108,85 @@ class RSSScraper(BaseScraper):
                 )
                 items.append(item)
 
+            if not items and source.strategy == FetchStrategy.AUTO:
+                browser_items = await self._fetch_feed_via_browser(source, since)
+                if browser_items:
+                    logger.info("Used browser fallback for RSS source %s", source.name)
+                    return browser_items
+
         except httpx.HTTPError as e:
             logger.warning("Error fetching RSS feed %s: %s", source.name, e)
+            if source.strategy == FetchStrategy.AUTO:
+                return await self._fetch_feed_via_browser(source, since)
         except Exception as e:
             logger.warning("Error parsing RSS feed %s: %s", source.name, e)
+            if source.strategy == FetchStrategy.AUTO:
+                return await self._fetch_feed_via_browser(source, since)
 
         return items
+
+    async def _fetch_feed_via_browser(
+        self,
+        source: RSSSourceConfig,
+        since: datetime,
+    ) -> List[ContentItem]:
+        web_source = WebSourceConfig(
+            name=source.name,
+            url=source.url,
+            enabled=source.enabled,
+            category=source.category,
+            strategy=FetchStrategy.BROWSER,
+            timeout_seconds=source.timeout_seconds,
+            retry_attempts=source.retry_attempts,
+        )
+
+        browser_items = await self.browser_fallback._try_browser(web_source, since)
+        if not browser_items:
+            return []
+
+        feed_id = str(source.url).split("//")[1].replace("/", "_")
+        converted: List[ContentItem] = []
+        for item in browser_items:
+            native_id = item.id.split(":")[-1]
+            converted.append(
+                item.model_copy(
+                    update={
+                        "id": self._generate_id("rss", feed_id, native_id),
+                        "source_type": SourceType.RSS,
+                    }
+                )
+            )
+        return converted
+
+    async def _get_with_retry(self, source: RSSSourceConfig, url: str) -> httpx.Response:
+        attempts = max(1, int(source.retry_attempts))
+        last_error: Exception | None = None
+
+        for attempt in range(1, attempts + 1):
+            try:
+                response = await self.client.get(
+                    url,
+                    follow_redirects=True,
+                    timeout=source.timeout_seconds,
+                )
+                response.raise_for_status()
+                return response
+            except httpx.HTTPError as exc:
+                last_error = exc
+                logger.warning(
+                    "Error fetching RSS feed %s (attempt %s/%s): %s",
+                    source.name,
+                    attempt,
+                    attempts,
+                    exc,
+                )
+                if attempt == attempts:
+                    break
+                await asyncio.sleep(min(1.5 * attempt, 5.0))
+
+        if last_error is None:  # pragma: no cover - defensive
+            raise httpx.HTTPError(f"Unknown RSS fetch failure for {source.name}")
+        raise last_error
 
     def _parse_date(self, entry: dict) -> datetime:
         """Parse publication date from feed entry.

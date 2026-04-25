@@ -11,7 +11,7 @@ from telethon import TelegramClient
 from telethon.tl.types import MessageEntityTextUrl
 
 from .base_scraper import BaseScraper
-from ..domain.models import ContentItem, TelegramConfig, TelegramChannelConfig, SourceType
+from ..domain.models import ContentItem, FetchStrategy, TelegramChannelConfig, TelegramConfig, SourceType
 
 logger = logging.getLogger(__name__)
 
@@ -36,6 +36,9 @@ class TelegramScraper(BaseScraper):
     async def fetch(self, since: datetime) -> List[ContentItem]:
         if not self.config.get("enabled", True) or not self.api_id or not self.api_hash:
             return []
+        strategy = getattr(self.config.get("strategy"), "value", self.config.get("strategy"))
+        if strategy == FetchStrategy.BROWSER.value:
+            logger.warning("Telegram requested browser mode, but the scraper will keep using Telethon sessions.")
 
         # Make sure data directory exists for the session file
         os.makedirs(os.path.dirname(self.session_path), exist_ok=True)

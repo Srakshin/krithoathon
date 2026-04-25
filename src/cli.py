@@ -19,11 +19,11 @@ CONFIG_TEMPLATE = """
 {
   "version": "1.0",
   "ai": {
-    "provider": "anthropic",
-    "model": "claude-sonnet-4.5-20250929",
-    "api_key_env": "ANTHROPIC_API_KEY",
+    "provider": "gemini",
+    "model": "gemini-2.5-flash",
+    "api_key_env": "GOOGLE_API_KEY",
     "temperature": 0.3,
-    "max_tokens": 4096
+    "max_tokens": 8192
   },
   "sources": {
     "github": [
@@ -43,21 +43,52 @@ CONFIG_TEMPLATE = """
         "name": "Example Blog",
         "url": "https://example.com/feed.xml",
         "enabled": true,
-        "category": "software-engineering"
+        "category": "software-engineering",
+        "strategy": "auto"
+      }
+    ],
+    "web": [
+      {
+        "name": "EdTech Competitor Search",
+        "url": "https://example.com/edtech/search",
+        "enabled": true,
+        "category": "competitors",
+        "strategy": "auto",
+        "page_kind": "listing",
+        "max_items": 10,
+        "allowed_domains": ["example.com"],
+        "browser": {
+          "wait_until": "networkidle",
+          "item_selector": "article",
+          "title_selector": "h2, h3",
+          "link_selector": "a[href]",
+          "summary_selector": "p"
+        }
       }
     ]
   },
   "filtering": {
     "ai_score_threshold": 7.0,
-    "time_window_hours": 24
+    "time_window_hours": 24,
+    "keywords": ["teacher tools"],
+    "minimum_topic_score": 2.0
   }
 }
 
-Also create a .env file with:
-ANTHROPIC_API_KEY=your_api_key_here
+The root .env file should include:
+GOOGLE_API_KEY=your_gemini_api_key_here
+GROK_API_KEY=your_grok_api_key_here
+GROK_MODEL=grok-4.20
+GROK_BASE_URL=https://api.x.ai/v1
 GITHUB_TOKEN=your_github_token_here
 SUPABASE_URL=your_supabase_url
 SUPABASE_ANON_KEY=your_supabase_anon_key
+# Optional browser auth/session vars referenced from config:
+# COMPETITOR_SEARCH_BROWSER_HEADERS_JSON={"Authorization":"Bearer ..."}
+# COMPETITOR_SEARCH_BROWSER_COOKIES_JSON=[{"name":"session","value":"...","domain":"example.com","path":"/"}]
+# COMPETITOR_SEARCH_BROWSER_STORAGE_STATE_PATH=C:\\path\\to\\storage-state.json
+# COMPETITOR_SEARCH_BROWSER_SESSION_STORAGE_JSON={"token":"..."}
+# COMPETITOR_SEARCH_BROWSER_PROXY_URL=http://user:pass@host:port
 """
 
 
@@ -98,7 +129,7 @@ def main() -> None:
     except FileNotFoundError:
         console.print("[bold red]Configuration file not found.[/bold red]\n")
         console.print(
-            "Run [bold cyan]uv run horizon-wizard[/bold cyan] or create "
+            "Run [bold cyan]python -m src.configuration.setup_wizard[/bold cyan] or create "
             "[cyan]data/config.json[/cyan] from this template:\n"
         )
         print_config_template()

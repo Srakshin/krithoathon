@@ -41,8 +41,6 @@ data/seen.json
 data/summaries/*.md
 data/subscribers.json
 
-docs/_posts/*.md
-
 # Logs
 logs/*.log
 *.log
@@ -52,6 +50,11 @@ logs/*.log
 
 # uv
 .uv/
+
+# Frontend build artifacts
+frontend/node_modules/
+frontend/dist/
+frontend/.env.local
 
 # todo
 todo.txt

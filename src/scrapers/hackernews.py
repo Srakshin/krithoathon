@@ -8,7 +8,7 @@ import asyncio
 import httpx
 
 from .base_scraper import BaseScraper
-from ..domain.models import ContentItem, SourceType, HackerNewsConfig
+from ..domain.models import ContentItem, FetchStrategy, HackerNewsConfig, SourceType
 
 logger = logging.getLogger(__name__)
 
@@ -25,6 +25,9 @@ class HackerNewsScraper(BaseScraper):
     async def fetch(self, since: datetime) -> List[ContentItem]:
         if not self.config.get("enabled", True):
             return []
+        strategy = getattr(self.config.get("strategy"), "value", self.config.get("strategy"))
+        if strategy == FetchStrategy.BROWSER.value:
+            logger.warning("Hacker News requested browser mode, but the scraper will keep using the JSON API.")
 
         try:
             response = await self.client.get(f"{self.base_url}/topstories.json")

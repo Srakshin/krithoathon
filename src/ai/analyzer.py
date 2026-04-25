@@ -133,7 +133,7 @@ class ContentAnalyzer:
 
         item.category = result.get("category", "Unknown")
         
-        fallback_score = 10.0 if item.category in ['Competitor Updates', 'User Pain Points', 'Emerging Tech Trends'] else 0.0
+        fallback_score = 10.0 if item.category in ['Competitor Updates', 'User Pain Points', 'Emerging Tech Trends', 'Market Opportunities', 'Customer Feedback Signals'] else 0.0
         try:
             item.ai_score = float(result.get("score", fallback_score))
         except (ValueError, TypeError):

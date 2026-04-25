@@ -14,7 +14,7 @@ from ..domain.models import (
     AIConfig, AIProvider, Config, FilteringConfig, SourcesConfig,
     GitHubSourceConfig, HackerNewsConfig, RSSSourceConfig,
     RedditConfig, RedditSubredditConfig, RedditUserConfig,
-    TelegramConfig, TelegramChannelConfig,
+    TelegramConfig, TelegramChannelConfig, WebSourceConfig,
 )
 from ..storage.file_store import FileStore
 from .preset_library import load_presets, match_sources
@@ -46,28 +46,27 @@ def configure_ai() -> Optional[AIConfig]:
         AIConfig if configured, None if user skips.
     """
     console.print("\n[bold]Step 1: AI Configuration[/bold]\n")
+    console.print(
+        "[dim]Gemini is used for general AI features. "
+        "Grok powers manual news bucketing in the fetch flow.[/dim]\n"
+    )
 
     load_dotenv()
 
-    providers = [p.value for p in AIProvider]
+    providers = [AIProvider.GEMINI.value]
     console.print(f"Available providers: {', '.join(providers)}")
     provider = Prompt.ask(
         "AI provider",
         choices=providers,
-        default="openai",
+        default=AIProvider.GEMINI.value,
     )
 
-    model = Prompt.ask("Model name", default="deepseek-chat" if provider == "openai" else "")
+    model = Prompt.ask("Model name", default="gemini-2.5-flash")
 
     base_url = Prompt.ask("Base URL (leave empty for default)", default="")
 
     default_env = {
-        "anthropic": "ANTHROPIC_API_KEY",
-        "openai": "OPENAI_API_KEY",
         "gemini": "GOOGLE_API_KEY",
-        "ali": "DASHSCOPE_API_KEY",
-        "doubao": "DOUBAO_API_KEY",
-        "minimax": "MINIMAX_API_KEY",
     }
     api_key_env = Prompt.ask(
         "API key environment variable name",
@@ -193,6 +192,7 @@ def build_config(
     reddit_subreddits = []
     reddit_users = []
     telegram_channels = []
+    web_sources = []
     for src in selected_sources:
         src_type = src.get("type", "")
         cfg = src.get("config", {})
@@ -233,6 +233,20 @@ def build_config(
                 channel=cfg.get("channel", ""),
                 fetch_limit=cfg.get("fetch_limit", 20),
             ))
+        elif src_type in {"web", "page"}:
+            web_sources.append(WebSourceConfig(
+                name=cfg.get("name", src.get("description", "Web Source")),
+                url=cfg.get("url", ""),
+                enabled=True,
+                category=cfg.get("category", ""),
+                page_kind=cfg.get("page_kind", "auto"),
+                strategy=cfg.get("strategy", "auto"),
+                max_items=cfg.get("max_items", 10),
+                allowed_domains=cfg.get("allowed_domains", []),
+                include_url_patterns=cfg.get("include_url_patterns", []),
+                exclude_url_patterns=cfg.get("exclude_url_patterns", []),
+                browser=cfg.get("browser", {}),
+            ))
 
     hn_config = HackerNewsConfig(
         enabled=True,
@@ -258,6 +272,7 @@ def build_config(
         rss=rss_sources,
         reddit=reddit_config,
         telegram=telegram_config,
+        web=web_sources,
     )
 
     filtering = FilteringConfig(
@@ -317,6 +332,13 @@ def merge_configs(new_config: Config, existing_config: Config) -> Config:
         new_subs.append(sub)
     new_subs.extend(existing_subs.values())
     merged.sources.reddit.subreddits = new_subs
+
+    existing_web = {s.url: s for s in existing_config.sources.web}
+    for src in merged.sources.web:
+        if src.url in existing_web:
+            src.enabled = existing_web[src.url].enabled
+            del existing_web[src.url]
+    merged.sources.web.extend(existing_web.values())
 
     return merged
 
@@ -419,4 +441,5 @@ def _count_sources(config: Config) -> int:
         count += len(config.sources.reddit.users or [])
     if config.sources.telegram.enabled:
         count += len(config.sources.telegram.channels or [])
+    count += len([s for s in config.sources.web if s.enabled])
     return count

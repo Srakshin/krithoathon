@@ -7,7 +7,7 @@ from typing import List, Optional
 import httpx
 
 from .base_scraper import BaseScraper
-from ..domain.models import ContentItem, SourceType, GitHubSourceConfig
+from ..domain.models import ContentItem, FetchStrategy, GitHubSourceConfig, SourceType
 
 logger = logging.getLogger(__name__)
 
@@ -55,6 +55,11 @@ class GitHubScraper(BaseScraper):
         for source in sources:
             if not source.enabled:
                 continue
+            if source.strategy == FetchStrategy.BROWSER:
+                logger.warning(
+                    "GitHub source %s requested browser mode, but GitHub scraping stays on the API path.",
+                    source.username or f"{source.owner}/{source.repo}",
+                )
 
             if source.type == "user_events" and source.username:
                 user_items = await self._fetch_user_events(source.username, since)

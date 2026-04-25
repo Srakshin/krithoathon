@@ -6,6 +6,7 @@ from .hackernews import HackerNewsScraper
 from .reddit import RedditScraper
 from .rss import RSSScraper
 from .telegram import TelegramScraper
+from .web import WebScraper
 
 __all__ = [
     "BaseScraper",
@@ -14,4 +15,5 @@ __all__ = [
     "RedditScraper",
     "RSSScraper",
     "TelegramScraper",
+    "WebScraper",
 ]

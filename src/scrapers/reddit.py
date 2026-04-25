@@ -8,7 +8,14 @@ from typing import List, Optional
 import httpx
 
 from .base_scraper import BaseScraper
-from ..domain.models import ContentItem, RedditConfig, RedditSubredditConfig, RedditUserConfig, SourceType
+from ..domain.models import (
+    ContentItem,
+    FetchStrategy,
+    RedditConfig,
+    RedditSubredditConfig,
+    RedditUserConfig,
+    SourceType,
+)
 
 logger = logging.getLogger(__name__)
 
@@ -26,6 +33,9 @@ class RedditScraper(BaseScraper):
     async def fetch(self, since: datetime) -> List[ContentItem]:
         if not self.config.get("enabled", True):
             return []
+        strategy = getattr(self.config.get("strategy"), "value", self.config.get("strategy"))
+        if strategy == FetchStrategy.BROWSER.value:
+            logger.warning("Reddit requested browser mode, but the scraper will keep using Reddit's JSON endpoints.")
 
         tasks = []
         for sub_cfg in self.reddit_config.subreddits:

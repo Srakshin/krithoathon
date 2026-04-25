@@ -9,12 +9,14 @@ import httpx
 from rich.console import Console
 
 from .domain.models import Config, ContentItem
+from .filtering import TopicalContentFilter
 from .notifications.email_service import EmailService
 from .scrapers.github import GitHubScraper
 from .scrapers.hackernews import HackerNewsScraper
 from .scrapers.rss import RSSScraper
 from .scrapers.reddit import RedditScraper
 from .scrapers.telegram import TelegramScraper
+from .scrapers.web import WebScraper
 from .ai.client import create_ai_client
 from .ai.analyzer import ContentAnalyzer
 from .ai.summarizer import DailySummarizer
@@ -31,6 +33,7 @@ class HorizonOrchestrator:
         self.storage = storage
         self.console = Console()
         self.email_service = EmailService(config.email, console=self.console) if config.email else None
+        self.topical_filter = TopicalContentFilter(config.filtering)
 
     async def run(self, force_hours: int = None) -> None:
         """Execute the complete workflow."""
@@ -174,6 +177,10 @@ class HorizonOrchestrator:
                 telegram_scraper = TelegramScraper(self.config.sources.telegram, client)
                 tasks.append(self._fetch_with_progress("Telegram", telegram_scraper, since))
 
+            if self.config.sources.web:
+                web_scraper = WebScraper(self.config.sources.web, client, content_filter=self.topical_filter)
+                tasks.append(self._fetch_with_progress("Web", web_scraper, since))
+
             results = await asyncio.gather(*tasks, return_exceptions=True)
 
             all_items = []
@@ -224,17 +231,14 @@ class HorizonOrchestrator:
         return item.author or "unknown"
 
     def _keyword_filter(self, items: List[ContentItem]) -> List[ContentItem]:
-        """Filter items by checking against configured keywords (if any)."""
-        keywords = getattr(self.config.filtering, "keywords", [])
-        if not keywords:
-            return items
-            
-        lower_keywords = [k.lower() for k in keywords]
+        """Keep items tightly focused on EdTech, school ops, and teacher tools."""
         filtered = []
         for item in items:
-            title = (item.title or "").lower()
-            content = (item.content or "").lower()
-            if any(k in title or k in content for k in lower_keywords):
+            relevant, score, matches = self.topical_filter.evaluate_item(item)
+            item.metadata["topic_score"] = round(score, 2)
+            if matches:
+                item.metadata["topic_matches"] = matches
+            if relevant:
                 filtered.append(item)
         return filtered
 

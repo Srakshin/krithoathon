@@ -19,10 +19,10 @@ from dotenv import load_dotenv
 from fastapi import Depends, FastAPI, HTTPException, Query, status
 from fastapi.middleware.cors import CORSMiddleware
 from fastapi.security import HTTPAuthorizationCredentials, HTTPBearer
-from supabase import Client, create_client
+from supabase import AuthError, Client, create_client
 from supabase.lib.client_options import SyncClientOptions
-from supabase_auth.errors import AuthError
 
+from .ai.grok_categorizer import GrokCategorizer, TARGET_CATEGORIES
 from .domain.models import ContentItem, SourceType
 from .pipeline import HorizonOrchestrator
 from .storage.file_store import FileStore
@@ -41,14 +41,13 @@ SOURCE_LABELS = {
     SourceType.RSS.value: "RSS",
     SourceType.REDDIT.value: "Reddit",
     SourceType.TELEGRAM.value: "Telegram",
+    SourceType.WEB.value: "Web",
 }
 
 TAG_RE = re.compile(r"<[^>]+>")
 WHITESPACE_RE = re.compile(r"\s+")
 PREFERRED_CATEGORY_ORDER = [
-    "Competitor Updates",
-    "User Pain Points",
-    "Emerging Tech Trends",
+    *TARGET_CATEGORIES,
     "Market Signals",
     "Uncategorized",
 ]
@@ -290,43 +289,6 @@ def _sub_source_label(item: ContentItem) -> str | None:
     return None
 
 
-def _infer_category(item: ContentItem) -> str:
-    if item.category:
-        return item.category
-
-    source = item.source_type
-    meta = item.metadata or {}
-    category_hint = str(meta.get("category", "")).lower()
-    blob = " ".join(
-        [
-            category_hint,
-            str(meta.get("subreddit", "")),
-            str(meta.get("feed_name", "")),
-            str(meta.get("channel", "")),
-            str(meta.get("repo", "")),
-            item.title or "",
-            item.content or "",
-        ]
-    ).lower()
-
-    if source == SourceType.REDDIT:
-        return "User Pain Points"
-
-    if source == SourceType.GITHUB:
-        return "Competitor Updates"
-
-    if "competitor" in category_hint:
-        return "Competitor Updates"
-
-    if any(term in blob for term in ("teacher", "teachers", "parent", "parents", "frustrat", "overwhelm")):
-        return "User Pain Points"
-
-    if source in {SourceType.HACKERNEWS, SourceType.RSS, SourceType.TELEGRAM}:
-        return "Emerging Tech Trends"
-
-    return "Market Signals"
-
-
 def _build_summary(item: ContentItem) -> str:
     summary = _plain_text(item.ai_summary)
     if summary:
@@ -346,10 +308,66 @@ def _normalize_scraped_item(item: ContentItem) -> dict[str, Any]:
         "source": item.source_type.value,
         "source_label": _source_label(item.source_type),
         "sub_source": _sub_source_label(item),
-        "category": _infer_category(item),
         "summary": _build_summary(item),
         "published_at": item.published_at.astimezone(timezone.utc).isoformat(),
     }
+
+
+def _fetch_records_by_urls(db: Client, urls: list[str]) -> list[dict[str, Any]]:
+    unique_urls = list(dict.fromkeys(url for url in urls if url))
+    if not unique_urls:
+        return []
+
+    response = db.table("market_intelligence").select("*").in_("url", unique_urls).execute()
+    return response.data or []
+
+
+def _build_records_to_insert(
+    items: list[dict[str, Any]],
+    existing_urls: set[str],
+) -> list[dict[str, Any]]:
+    return [
+        {
+            "title": item["title"],
+            "url": item["url"],
+            "source": item["source"],
+            "category": None,
+            "summary": item["summary"],
+        }
+        for item in items
+        if item.get("url") and item["url"] not in existing_urls
+    ]
+
+
+def _needs_grok_analysis(record: dict[str, Any]) -> bool:
+    category = str(record.get("category") or "").strip()
+    return category not in TARGET_CATEGORIES
+
+
+async def _categorize_records_in_database(
+    db: Client,
+    records: list[dict[str, Any]],
+) -> int:
+    if not records:
+        return 0
+
+    categorizer = GrokCategorizer()
+    updates = await categorizer.categorize_records(records)
+
+    for record_id, values in updates.items():
+        (
+            db.table("market_intelligence")
+            .update(
+                {
+                    "category": values["category"],
+                    "summary": values["summary"],
+                }
+            )
+            .eq("id", record_id)
+            .execute()
+        )
+
+    return len(updates)
 
 
 def _normalize_db_record(record: dict[str, Any]) -> dict[str, Any]:
@@ -665,11 +683,12 @@ async def fetch_intelligence(
     request: dict[str, Any] = Depends(_get_authenticated_request),
     hours: int = Query(DEFAULT_FETCH_HOURS, ge=1, le=168),
 ):
-    """Run the configured scrapers, store fresh items in Supabase, and return them."""
+    """Run scrapers on demand, store raw data first, then categorize it with Grok."""
 
     orchestrator = _load_orchestrator()
     since = datetime.now(timezone.utc) - timedelta(hours=hours)
     db = request["db"]
+    today, _, _ = _today_window()
 
     try:
         fetched_items = await orchestrator.fetch_all_sources(since)
@@ -682,73 +701,165 @@ async def fetch_intelligence(
     merged_items = orchestrator.merge_cross_source_duplicates(fetched_items)
     normalized_items = [_normalize_scraped_item(item) for item in merged_items]
     normalized_items = _sort_records(normalized_items)
-
-    today, start, end = _today_window()
     inserted_count = 0
     duplicates_skipped = 0
-    storage_status = "stored"
-    message: str | None = None
+    if not normalized_items:
+        return _build_digest_payload(
+            [],
+            user_id=request["claims"].get("sub"),
+            date=today,
+            message=f"No scraper items were found in the last {hours} hours.",
+            extra={
+                "status": "ok",
+                "storage_status": "stored",
+                "analysis_status": "skipped",
+                "raw_fetched_count": len(fetched_items),
+                "deduplicated_count": 0,
+                "inserted_count": 0,
+                "duplicates_skipped": 0,
+                "categorized_count": 0,
+                "hours": hours,
+            },
+        )
 
-    if normalized_items:
-        try:
-            existing = (
-                db.table("market_intelligence")
-                .select("url")
-                .gte("created_at", start)
-                .lte("created_at", end)
-                .execute()
-            )
-            existing_urls = {
-                row.get("url")
-                for row in (existing.data or [])
-                if row.get("url")
-            }
+    urls = [item["url"] for item in normalized_items if item.get("url")]
 
-            records_to_insert = [
-                {
-                    "title": item["title"],
-                    "url": item["url"],
-                    "source": item["source"],
-                    "category": item["category"],
-                    "summary": item["summary"],
-                }
-                for item in normalized_items
-                if item["url"] not in existing_urls
-            ]
+    try:
+        existing_records = _fetch_records_by_urls(db, urls)
+    except Exception as exc:
+        raise HTTPException(
+            status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
+            detail=_read_error_message(exc),
+        )
 
-            duplicates_skipped = len(normalized_items) - len(records_to_insert)
+    existing_urls = {
+        record.get("url")
+        for record in existing_records
+        if record.get("url")
+    }
+    records_to_insert = _build_records_to_insert(normalized_items, existing_urls)
+    duplicates_skipped = len(normalized_items) - len(records_to_insert)
 
-            if records_to_insert:
-                result = db.table("market_intelligence").insert(records_to_insert).execute()
-                inserted_count = len(result.data or records_to_insert)
+    try:
+        if records_to_insert:
+            result = db.table("market_intelligence").insert(records_to_insert).execute()
+            inserted_count = len(result.data or records_to_insert)
+    except Exception as exc:
+        raise HTTPException(
+            status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
+            detail=_storage_error_message(exc),
+        )
 
-            message = (
-                f"Fetched {len(normalized_items)} scraper items and stored "
-                f"{inserted_count} new records in Supabase."
-            )
-            if duplicates_skipped:
-                message += f" Skipped {duplicates_skipped} duplicates already saved today."
+    try:
+        stored_records = _fetch_records_by_urls(db, urls)
+    except Exception as exc:
+        raise HTTPException(
+            status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
+            detail=_read_error_message(exc),
+        )
 
-        except Exception as exc:
-            storage_status = "failed"
-            message = _storage_error_message(exc)
+    records_needing_analysis = [
+        record
+        for record in stored_records
+        if _needs_grok_analysis(record)
+    ]
 
-    else:
-        message = f"No scraper items were found in the last {hours} hours."
+    try:
+        categorized_count = await _categorize_records_in_database(db, records_needing_analysis)
+    except ValueError as exc:
+        raise HTTPException(
+            status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
+            detail=(
+                "Scraper data was stored in Supabase, but Grok returned an invalid "
+                f"categorization response: {exc}"
+            ),
+        )
+    except Exception as exc:
+        raise HTTPException(
+            status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
+            detail=(
+                "Scraper data was stored in Supabase, but Grok categorization failed. "
+                f"Check GROK_API_KEY and model access. Details: {exc}"
+            ),
+        )
 
-    payload = _build_digest_payload(
-        normalized_items,
+    try:
+        final_records = _fetch_records_by_urls(db, urls)
+    except Exception as exc:
+        raise HTTPException(
+            status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
+            detail=_read_error_message(exc),
+        )
+
+    normalized_records = [_normalize_db_record(record) for record in final_records]
+    normalized_records = _sort_records(normalized_records)
+
+    message = (
+        f"Fetched {len(normalized_items)} deduplicated scraper items, stored "
+        f"{inserted_count} new records in Supabase, and categorized "
+        f"{categorized_count} stored records with Grok."
+    )
+    if duplicates_skipped:
+        message += f" Reused {duplicates_skipped} records that were already in the database."
+
+    return _build_digest_payload(
+        normalized_records,
         user_id=request["claims"].get("sub"),
         date=today,
         message=message,
         extra={
-            "status": "ok" if storage_status == "stored" else "partial",
-            "storage_status": storage_status,
+            "status": "ok",
+            "storage_status": "stored",
+            "analysis_status": "completed",
             "raw_fetched_count": len(fetched_items),
+            "deduplicated_count": len(normalized_items),
             "inserted_count": inserted_count,
             "duplicates_skipped": duplicates_skipped,
+            "categorized_count": categorized_count,
             "hours": hours,
         },
     )
 
-    return payload
+@app.get("/preferences")
+async def get_preferences(request: dict[str, Any] = Depends(_get_authenticated_request)):
+    """Retrieve user preferences."""
+    db = request["db"]
+    user_id = request["claims"]["sub"]
+    
+    try:
+        response = db.table("user_preferences").select("*").eq("user_id", user_id).execute()
+        if response.data:
+            return response.data[0]
+        return {}
+    except Exception as exc:
+        raise HTTPException(
+            status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
+            detail=f"Failed to fetch preferences: {exc}"
+        )
+
+
+@app.post("/preferences")
+async def save_preferences(
+    preferences: dict[str, Any],
+    request: dict[str, Any] = Depends(_get_authenticated_request)
+):
+    """Save user preferences."""
+    db = request["db"]
+    user_id = request["claims"]["sub"]
+    
+    preferences["user_id"] = user_id
+    preferences["updated_at"] = datetime.now(timezone.utc).isoformat()
+    
+    try:
+        check = db.table("user_preferences").select("user_id").eq("user_id", user_id).execute()
+        if check.data:
+            db.table("user_preferences").update(preferences).eq("user_id", user_id).execute()
+        else:
+            db.table("user_preferences").insert(preferences).execute()
+            
+        return {"status": "ok", "message": "Preferences saved successfully"}
+    except Exception as exc:
+        raise HTTPException(
+            status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
+            detail=f"Failed to save preferences: {exc}"
+        )

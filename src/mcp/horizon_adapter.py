@@ -16,7 +16,7 @@ from dotenv import load_dotenv
 from .errors import HorizonMcpError
 
 
-VALID_SOURCES = {"github", "hackernews", "rss", "reddit", "telegram"}
+VALID_SOURCES = {"github", "hackernews", "rss", "reddit", "telegram", "web"}
 ENV_KEY_RE = re.compile(r"^[A-Z_][A-Z0-9_]*$")
 
 
@@ -195,6 +195,8 @@ def apply_source_filter(config: Any, sources: list[str] | None) -> tuple[Any, li
     if "telegram" not in wanted:
         clone.sources.telegram.enabled = False
         clone.sources.telegram.channels = []
+    if "web" not in wanted:
+        clone.sources.web = []
 
     return clone, chosen, unknown
 
@@ -213,6 +215,8 @@ def get_enabled_sources(config: Any) -> list[str]:
         enabled.append("reddit")
     if getattr(config.sources.telegram, "enabled", False):
         enabled.append("telegram")
+    if getattr(config.sources, "web", None):
+        enabled.append("web")
     return enabled
 
 
